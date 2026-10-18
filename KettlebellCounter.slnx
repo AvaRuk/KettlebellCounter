@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="KettlebellCounter/KettlebellCounter.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+</Solution>

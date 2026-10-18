@@ -1,13 +1,13 @@
-// Общий код: отрисовка сцены для LED-панели и клавиатурные команды.
-// Подключается и на странице табло, и на странице пульта (там — для превью); сервер берёт отсюда список цветовых схем.
+// Shared code: scene rendering for the LED panel (any number of teams) and time helper functions.
+// Loaded on both the display page and the control page (there — only to check whether the names fit); the server takes the list of color schemes from here.
 (function () {
   const SEG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg' };
-  const U_DIGIT = 0.55, U_COLON = 0.17, U_GAP = 0.16;   // в долях высоты цифры
+  const U_DIGIT = 0.55, U_COLON = 0.17, U_GAP = 0.16;   // in fractions of the digit height
 
-  // Насыщенные цвета: на светодиодах полутона не читаются, зато тёплые и холодные оттенки хорошо различимы
+  // Saturated colors: half-tones are unreadable on LEDs, while warm and cool shades are easy to tell apart
   const PALETTES = [
-    // Тема ТГАСУ: фирменный малиновый E5007D и синий. Тёмный синий на чёрном фоне панели не виден,
-    // поэтому для табло синий взят ярче — при необходимости поправьте под брендбук.
+    // TGASU theme: brand crimson E5007D and blue. Dark blue is invisible on the panel's black background,
+    // so a brighter blue is used for the display — adjust to the brand book if needed.
     { name: 'ТГАСУ: малиновый и синий', frame: '#1f5fff', timer: '#ffffff', t1: '#e5007d', t2: '#3d9bff', alarm: '#ff3b30' },
     { name: 'Классика: янтарь, зелёный, голубой', frame: '#ffc400', timer: '#ffc400', t1: '#3cff7a', t2: '#3cc8ff', alarm: '#ff2d2d' },
     { name: 'Огонь и лёд: оранжевый и синий', frame: '#ffffff', timer: '#ffffff', t1: '#ff6a1a', t2: '#2ea8ff', alarm: '#ff2d2d' },
@@ -17,7 +17,7 @@
     { name: 'Всё красным (монохромная панель)', frame: '#ff0000', timer: '#ff0000', t1: '#ff0000', t2: '#ff0000', alarm: '#ff0000' },
   ];
 
-  // ---------- Пиксельный шрифт 5×7 (латиница, кириллица, цифры) ----------
+  // ---------- 5×7 pixel font (Latin, Cyrillic, digits) ----------
   const F = (s) => s.split('/');
   const FONT = {
     ' ': F('...../...../...../...../...../...../.....'),
@@ -67,6 +67,19 @@
     X: F('#...#/#...#/.#.#./..#../.#.#./#...#/#...#'),
     Y: F('#...#/#...#/.#.#./..#../..#../..#../..#..'),
     Z: F('#####/....#/...#./..#../.#.../#..../#####'),
+    'А': F('.###./#...#/#...#/#####/#...#/#...#/#...#'),
+    'В': F('####./#...#/#...#/####./#...#/#...#/####.'),
+    'Е': F('#####/#..../#..../####./#..../#..../#####'),
+    'К': F('#...#/#..#./#.#../##.../#.#../#..#./#...#'),
+    'М': F('#...#/##.##/#.#.#/#.#.#/#...#/#...#/#...#'),
+    'Н': F('#...#/#...#/#...#/#####/#...#/#...#/#...#'),
+    'О': F('.###./#...#/#...#/#...#/#...#/#...#/.###.'),
+    'Р': F('####./#...#/#...#/####./#..../#..../#....'),
+    'С': F('.###./#...#/#..../#..../#..../#...#/.###.'),
+    'Т': F('#####/..#../..#../..#../..#../..#../..#..'),
+    'Х': F('#...#/#...#/.#.#./..#../.#.#./#...#/#...#'),
+    'У': F('#...#/#...#/#...#/.####/....#/....#/.###.'),
+    'Ё': F('.#.#./#####/#..../####./#..../#..../#####'),
     'Б': F('#####/#..../#..../####./#...#/#...#/####.'),
     'Г': F('#####/#..../#..../#..../#..../#..../#....'),
     'Д': F('..##./.#.#./.#.#./.#.#./.#.#./#####/#...#'),
@@ -88,10 +101,7 @@
     'Ю': F('#..#./#.#.#/#.#.#/###.#/#.#.#/#.#.#/#..#.'),
     'Я': F('.####/#...#/#...#/.####/..#.#/.#..#/#...#'),
   };
-  // Кириллические буквы, совпадающие по начертанию с латинскими
-  const ALIAS = { 'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X', 'У': 'Y' };
-
-  // Готовим глифы: для каждой строки — список отрезков [столбец, длина], чтобы рисовать меньше прямоугольников
+  // Prepare glyphs: for each row — a list of runs [column, length], to draw fewer rectangles
   const GLYPHS = {};
   for (const [ch, rows] of Object.entries(FONT)) {
     GLYPHS[ch] = rows.map((row) => {
@@ -106,9 +116,9 @@
       return runs;
     });
   }
-  const glyph = (ch) => GLYPHS[ch] || GLYPHS[ALIAS[ch]] || null;
+  const glyph = (ch) => GLYPHS[ch] || null;
 
-  // Рисует строку пиксельным шрифтом, каждая «точка» — квадрат s×s. Шаг букв: 6·s
+  // Draws a string with the pixel font, each "dot" is an s×s square. Letter pitch: 6·s
   function drawText(ctx, str, x, y, s, color) {
     ctx.fillStyle = color;
     for (const ch of str) {
@@ -118,23 +128,32 @@
     }
   }
 
-  // Какой целый масштаб шрифта влезает в ячейку команды (не больше ~30% её высоты)
+  // Which integer font scale fits into a team cell (no more than ~30% of its height)
   function nameFit(names, cw, ch, show) {
     const none = { s: 0, h: 0, maxChars: 0 };
     if (!show) return none;
-    const n = Math.max(names[0].length, names[1].length);
+    const n = names.reduce((m, x) => Math.max(m, x.length), 0);
     if (n === 0) return none;
     let sH = 0;
-    for (let s = 1; s <= 40; s++) { if (8 * s > ch * 0.3) break; sH = s; }
+    for (let s = 1; s <= 40; s++) { if (9 * s > ch * 0.3) break; sH = s; }
     if (sH === 0) return none;
     const sW = Math.floor(cw / (6 * n - 1));
     const s = Math.min(sH, Math.max(1, sW));
     const maxChars = Math.floor((cw + s) / (6 * s));
     if (maxChars < 1) return none;
-    return { s, h: 8 * s, maxChars };
+    return { s, h: 8 * s + Math.max(1, Math.floor(s / 2)), maxChars };
   }
 
-  // ---------- Семисегментные цифры ----------
+  // Relay results row above the score: "42 38 -" (one slot per participant). The scale is computed for 3 digits per slot
+  function legsFit(N, cw, ch) {
+    const none = { s: 0, h: 0 };
+    if (!N) return none;
+    const chars = 4 * N - 1;
+    const s = Math.min(Math.floor(cw / (6 * chars - 1)), Math.floor((ch * 0.22) / 9));
+    return s < 1 ? none : { s, h: 8 * s + Math.max(1, Math.floor(s / 2)) };
+  }
+
+  // ---------- Seven-segment digits ----------
   function geometry(str, dh) {
     const t = Math.max(1, Math.round(dh * U_COLON));
     const dw = Math.max(3, Math.round(dh * U_DIGIT));
@@ -153,10 +172,10 @@
     return Math.floor(Math.min(ah, aw / units));
   }
 
-  // ---------- Скруглённые цифры ----------
-  // Цифра рисуется штрихами с круглыми концами и углами, затем жёстко бинаризуется (без полутонов),
-  // чтобы на панели остались только полностью включённые или выключенные пиксели.
-  // Результат кэшируется: на каждом кадре цифры просто копируются.
+  // ---------- Rounded digits ----------
+  // A digit is drawn with strokes with round caps and corners, then hard-binarized (no half-tones),
+  // so that only fully lit or fully unlit pixels remain on the panel.
+  // The result is cached: on each frame the digits are simply copied.
   const spriteCache = new Map();
   let cachePx = 0;
   const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
@@ -176,7 +195,7 @@
     g.putImageData(img, 0, 0);
     return c;
   }
-  // Кэш ограничен по площади, чтобы при перетаскивании размера окна память не росла
+  // The cache is limited by area so memory doesn't grow while the window is being resized
   function cached(key, w, h, color, paint) {
     let v = spriteCache.get(key);
     if (!v) {
@@ -206,7 +225,7 @@
     });
   }
 
-  // Рамка вокруг табло: со скруглёнными углами (как и цифры) или обычная
+  // Frame around the display: with rounded corners (like the digits) or plain
   function drawFrame(ctx, W, H, f, color, round) {
     if (f < 1) return;
     if (round && typeof document !== 'undefined') {
@@ -229,7 +248,30 @@
     }
   }
 
-  // Цифры: скруглённые (по умолчанию) или классические из прямоугольников
+  // Team cell edge: a frame of thickness t inside the rectangle x, y, w, h (rounded or plain)
+  function drawBox(ctx, x, y, w, h, t, color, round) {
+    if (t < 1 || w < 2 * t + 2 || h < 2 * t + 2) return;
+    if (round && typeof document !== 'undefined') {
+      const r = Math.max(2, Math.min(24, Math.round(Math.min(w, h) * 0.08)));
+      const spr = cached(`B|${w}|${h}|${t}|${r}|${color}`, w, h, color, (g) => {
+        const a = t / 2;
+        g.lineWidth = t;
+        g.beginPath();
+        g.moveTo(a + r, a); g.lineTo(w - a - r, a); g.arcTo(w - a, a, w - a, a + r, r);
+        g.lineTo(w - a, h - a - r); g.arcTo(w - a, h - a, w - a - r, h - a, r);
+        g.lineTo(a + r, h - a); g.arcTo(a, h - a, a, h - a - r, r);
+        g.lineTo(a, a + r); g.arcTo(a, a, a + r, a, r);
+        g.closePath(); g.stroke();
+      });
+      ctx.drawImage(spr, x, y);
+    } else {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, t); ctx.fillRect(x, y + h - t, w, t);
+      ctx.fillRect(x, y + t, t, h - 2 * t); ctx.fillRect(x + w - t, y + t, t, h - 2 * t);
+    }
+  }
+
+  // Digits: rounded (default) or classic ones made of rectangles
   function drawNumber(ctx, str, ax, ay, aw, ah, color, round) {
     if (aw < 3 || ah < 3) return;
     let dh = fitDh(str, aw, ah);
@@ -271,33 +313,76 @@
     }
   }
 
-  // Раскладка: таймер сверху; команды друг под другом (вертикальная панель) или рядом (горизонтальная).
-  // В каждой ячейке команды сверху название, под ним счёт.
-  function plan(W, H, m, stacked, sample, names, show) {
+  // Layout: timer on top, below it a grid of team cells (rows × cols), with separators between cells.
+  // Each cell has the name on top and the score below it.
+  function plan(W, H, m, rows, cols, n, sample, names, show, legsN) {
     const aw = W - 2 * m;
-    const tMax = Math.round(H * (stacked ? 0.28 : 0.36)) - m;
+    let frac;
+    if (n === 0) frac = 0.6;
+    else if (cols === 1) frac = Math.min(0.34, Math.max(0.14, 0.34 - 0.03 * rows));
+    else frac = rows === 1 ? 0.36 : 0.26;
+    const tMax = Math.round(H * frac) - m;
     const th = Math.max(0, Math.min(tMax, fitDh('00:00', aw, H)));
     const by = m + th + m, bh = H - by - m;
     const line = Math.max(1, Math.round(Math.min(W, H) * 0.02));
     const pad = Math.max(1, Math.round(m / 2));
-    let c1, c2, ln;
-    if (stacked) {
-      const ch = Math.floor((bh - line - 2 * pad) / 2);
-      c1 = { x: m, y: by, w: aw, h: ch };
-      ln = { x: m, y: by + ch + pad, w: aw, h: line };
-      c2 = { x: m, y: by + ch + 2 * pad + line, w: aw, h: ch };
-    } else {
-      const cw = Math.floor((aw - line - 2 * pad) / 2);
-      c1 = { x: m, y: by, w: cw, h: bh };
-      ln = { x: m + cw + pad, y: by, w: line, h: bh };
-      c2 = { x: m + cw + 2 * pad + line, y: by, w: cw, h: bh };
+    const gx = 2 * pad + line, gy = 2 * pad + line;
+    const cw = Math.max(0, Math.floor((aw - (cols - 1) * gx) / cols));
+    const ch = Math.max(0, Math.floor((bh - (rows - 1) * gy) / rows));
+    const cells = [];
+    const lines = [];
+    const usedRows = n ? Math.ceil(n / cols) : 0;
+    const rowCount = (r) => Math.min(cols, n - r * cols);
+    // Center an incomplete last row so it doesn't "slide" to the left
+    const rowX = (r) => m + Math.floor(((cols - rowCount(r)) * (cw + gx)) / 2);
+    for (let i = 0; i < n; i++) {
+      const r = Math.floor(i / cols), c = i % cols;
+      cells.push({ x: rowX(r) + c * (cw + gx), y: by + r * (ch + gy), w: cw, h: ch });
     }
-    const nf = nameFit(names, c1.w, c1.h, show);
-    return { stacked, timer: { x: m, y: m, w: aw, h: th }, c1, c2, ln, nf, dh: fitDh(sample, c1.w, c1.h - nf.h) };
+    // Vertical separators only between existing cells; between full rows the line runs through the horizontal one
+    for (let r = 0; r < usedRows; r++) {
+      const k = rowCount(r);
+      const through = r < usedRows - 1 && k === cols && rowCount(r + 1) === cols;
+      for (let c = 0; c < k - 1; c++)
+        lines.push({ x: rowX(r) + (c + 1) * cw + c * gx + pad, y: by + r * (ch + gy), w: line, h: ch + (through ? gy : 0) });
+    }
+    for (let r = 0; r < usedRows - 1; r++) lines.push({ x: m, y: by + (r + 1) * ch + r * gy + pad, w: aw, h: line });
+    const nf = nameFit(names, cw, ch, show);
+    const rf = legsFit(legsN, cw, ch);
+    const dh = n ? fitDh(sample, cw, ch - nf.h - rf.h) : 0;
+    return { rows, cols, timer: { x: m, y: m, w: aw, h: th }, cells, lines, nf, rf, dh, pad, line };
   }
 
-  // ---------- Время ----------
-  // Таймер считается по времени сервера: net.js вычисляет поправку к часам этого компьютера
+  // Try all grids (single column, single row, square) and pick the one where the score ends up largest
+  function bestPlan(W, H, m, n, sample, names, show, legsN) {
+    if (n <= 1) return plan(W, H, m, 1, 1, n, sample, names, show, legsN);
+    let best = null;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      if ((cols - 1) * rows >= n) continue;   // the last column would be empty
+      const p = plan(W, H, m, rows, cols, n, sample, names, show, legsN);
+      if (!best || p.dh > best.dh) best = p;
+    }
+    return best;
+  }
+
+  // A team's total score: in a relay — the sum of participants' results plus the current leg (after time is up — just the sum)
+  function teamTotal(st, t) {
+    if (!st.relay || !st.relay.on) return t.reps ?? 0;
+    const sum = (t.legs || []).reduce((a, b) => a + b, 0);
+    return st.finished ? sum : sum + Math.max(0, (t.reps ?? 0) - (t.legBase || 0));
+  }
+  // Index of the current relay leg (zero-based)
+  function relayLeg(st) {
+    const N = st.relay.legs;
+    return Math.min(N - 1, Math.floor(elapsedOf(st) * N / (st.duration * 1000)));
+  }
+
+  // Team color by index: even and odd teams get different colors
+  const teamColor = (colors, i) => (i % 2 === 0 ? colors.t1 : colors.t2);
+
+  // ---------- Time ----------
+  // The timer is based on server time: net.js computes the offset to this computer's clock
   let clockOffset = 0;
   const now = () => Date.now() + clockOffset;
   function elapsedOf(st) {
@@ -315,8 +400,8 @@
   }
   const isAlarm = (st) => st.finished || (st.mode === 'down' && st.running && secondsOf(st) <= 10);
 
-  // Рисует сцену в canvas размером W×H.
-  // Возвращает { stacked, cut }: stacked — команды друг под другом; cut[i] — название i-й команды обрезано или скрыто
+  // Draws the scene into a canvas of W×H. st.teams — a list of { name, reps }.
+  // Returns { rows, cols, cut }: cut[i] — the i-th team's name is truncated or hidden
   function draw(canvas, st, W, H) {
     if (canvas.width !== W) canvas.width = W;
     if (canvas.height !== H) canvas.height = H;
@@ -324,15 +409,17 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
 
-    const names = [String(st.names?.[0] ?? ''), String(st.names?.[1] ?? '')];
+    const teams = Array.isArray(st.teams) ? st.teams : [];
+    const n = teams.length;
+    const names = teams.map((t) => String(t.name ?? ''));
     const show = st.showNames !== false;
     const colors = st.colors || PALETTES[0];
     const round = st.rounded !== false;
-    const f = st.frame !== false ? Math.max(1, Math.round(Math.min(W, H) * 0.02)) : 0;   // толщина рамки
+    const f = st.frame !== false ? Math.max(1, Math.round(Math.min(W, H) * 0.02)) : 0;   // frame thickness
     const m = Math.max(1, Math.round(Math.min(W, H) * 0.04)) + f;
-    const sample = '000';   // считаем под 3 цифры, чтобы раскладка не прыгала при 99 → 100
-    const a = plan(W, H, m, true, sample, names, show), b = plan(W, H, m, false, sample, names, show);
-    const L = b.dh > a.dh ? b : a;
+    const sample = '000';   // computed for 3 digits so the layout doesn't jump at 99 → 100
+    const legsN = st.relay && st.relay.on ? st.relay.legs : 0;
+    const L = bestPlan(W, H, m, n, sample, names, show, legsN);
 
     const blink = Math.floor(now() / 500) % 2 === 0;
     const paused = !st.running && !st.finished && st.elapsed > 0;
@@ -341,50 +428,63 @@
       const t = L.timer;
       drawNumber(ctx, fmt(secondsOf(st)), t.x, t.y, t.w, t.h, isAlarm(st) ? colors.alarm : colors.timer, round);
     }
-    // Рамка и разделитель — фирменный цвет; когда время вышло, рамка загорается цветом тревоги
+    // Frame and separators use the brand color; when time is up, the frame lights up in the alarm color
     drawFrame(ctx, W, H, f, st.finished ? colors.alarm : (colors.frame || colors.timer), round);
-    ctx.fillStyle = colors.frame || colors.timer;
-    ctx.fillRect(L.ln.x, L.ln.y, L.ln.w, L.ln.h);
+    ctx.fillStyle = colors.line || colors.frame || colors.timer;
+    for (const l of L.lines) ctx.fillRect(l.x, l.y, l.w, l.h);
 
-    const cut = [false, false];
-    [L.c1, L.c2].forEach((c, i) => {
-      const { s, h, maxChars } = L.nf;
+    // Team edge — a frame around its cell; sits in the gap between cells and doesn't overlap the display frame
+    L.cells.forEach((c, i) => {
+      const e = teams[i].edgeColor;
+      if (e) drawBox(ctx, c.x - L.pad, c.y - L.pad, c.w + 2 * L.pad, c.h + 2 * L.pad, L.line, e, round);
+    });
+
+    const cut = names.map(() => false);
+    L.cells.forEach((c, i) => {
+      const { s, h: nh, maxChars } = L.nf;
+      const h = nh + L.rf.h;   // height of the name and the relay results row
+      const base = teamColor(colors, i + (st.colorOffset || 0));
+      const nameCol = teams[i].nameColor || base, countCol = teams[i].countColor || base;   // colorOffset — a single-team display keeps that team's color
       if (s > 0 && names[i]) {
         const txt = names[i].slice(0, maxChars);
         const tw = txt.length * 6 * s - s;
-        drawText(ctx, txt, c.x + Math.floor((c.w - tw) / 2), c.y, s, i === 0 ? colors.t1 : colors.t2);
+        drawText(ctx, txt, c.x + Math.floor((c.w - tw) / 2), c.y, s, nameCol);
         cut[i] = names[i].length > maxChars;
       } else if (show && names[i]) {
-        cut[i] = true;   // места на названия нет совсем
+        cut[i] = true;   // there is no room for names at all
       }
-      drawNumber(ctx, String(st.count[i]), c.x, c.y + h, c.w, c.h - h, i === 0 ? colors.t1 : colors.t2, round);
+      // Relay: participants' results above the score; when time is up, the score below is the overall total
+      let big = teams[i].reps ?? 0;
+      if (legsN) {
+        const lg = teams[i].legs || [];
+        if (L.rf.s > 0) {
+          const txt = Array.from({ length: legsN }, (_, k) => (lg[k] === undefined ? '-' : String(lg[k]))).join(' ');
+          const tw = txt.length * 6 * L.rf.s - L.rf.s;
+          drawText(ctx, txt, c.x + Math.max(0, Math.floor((c.w - tw) / 2)), c.y + nh, L.rf.s, countCol);
+        }
+        if (st.finished) big = teamTotal(st, teams[i]);   // during a leg — the participant's counter (from zero or from the current value), at the end — the overall total
+      }
+      // Single-team display: at the bottom of the cell — the "ЛИДЕР" (leader) line and the leader's score
+      let lh = 0;
+      if (st.leader && n === 1) {
+        lh = Math.floor((c.h - h) * 0.36);
+        const ls = Math.min(Math.floor(lh / 9), Math.floor((c.w * 0.45) / 29));
+        if (ls >= 1) {
+          // The label and the number form one group centered in the cell; the number width is computed for 3 digits so the group doesn't "wander"
+          const ly = c.y + c.h - lh, tw = 29 * ls, gapL = 2 * ls;
+          const ndh = Math.max(3, fitDh('000', c.w - tw - gapL, lh));
+          const nw = Math.min(c.w - tw - gapL, geometry('000', ndh).total);
+          const gx0 = c.x + Math.floor((c.w - (tw + gapL + nw)) / 2);
+          drawText(ctx, 'ЛИДЕР', gx0, ly + Math.floor((lh - 7 * ls) / 2), ls, st.leader.color);
+          drawNumber(ctx, String(st.leader.reps), gx0 + tw + gapL, ly, nw, lh, st.leader.color, round);
+        } else lh = 0;
+      }
+      drawNumber(ctx, String(big), c.x, c.y + h, c.w, c.h - h - lh, countCol, round);
     });
-    return { stacked: L.stacked, cut };
+    return { rows: L.rows, cols: L.cols, cut };
   }
 
-  // ---------- Клавиши (одинаково в обоих окнах) ----------
-  function keyToAction(e) {
-    if (e.ctrlKey || e.altKey || e.metaKey) return null;
-    const c = e.code;
-    const arrows = c === 'ArrowLeft' || c === 'ArrowRight';
-    if (e.repeat && !arrows) return null;
-    switch (c) {
-      case 'Space': case 'Enter': case 'NumpadEnter': return { type: 'toggle' };
-      case 'KeyQ': case 'Numpad7': return { type: 'count', team: 0, delta: 1 };
-      case 'KeyA': case 'Numpad1': return { type: 'count', team: 0, delta: -1 };
-      case 'KeyP': case 'Numpad9': return { type: 'count', team: 1, delta: 1 };
-      case 'KeyL': case 'Numpad3': return { type: 'count', team: 1, delta: -1 };
-      case 'Delete': return { type: 'resetCounts' };
-      case 'KeyR': return { type: 'reset' };
-      case 'KeyT': return { type: 'toggleMode' };
-      case 'KeyC': return { type: 'cyclePal' };
-      case 'ArrowLeft': return { type: 'adjust', delta: e.shiftKey ? -10 : -60 };
-      case 'ArrowRight': return { type: 'adjust', delta: e.shiftKey ? 10 : 60 };
-    }
-    return null;
-  }
-
-  const KB = { PALETTES, draw, elapsedOf, secondsOf, fmt, isAlarm, keyToAction, setClockOffset: (v) => { clockOffset = v; }, _font: FONT };
+  const KB = { PALETTES, teamTotal, relayLeg, draw, elapsedOf, secondsOf, fmt, isAlarm, teamColor, setClockOffset: (v) => { clockOffset = v; }, _font: FONT };
   if (typeof window !== 'undefined') window.KB = KB;
   if (typeof module !== 'undefined' && module.exports) module.exports = KB;
 })();

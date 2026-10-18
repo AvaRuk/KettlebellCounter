@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self'">
+    <title>Пульт хронометриста</title>
+    <style>
+        :root {
+            --brand-deep: #0b2a5b; --accent: #e5007d; --accent-hi: #ff1a94; --sky: #3d9bff;
+            --bg: #08172e; --panel: #0f2547; --panel-2: #14305b; --line: #23467a; --text: #eef3fb; --dim: #8fa6c7;
+            --alarm: #ff3b30; --timer: #ffffff;
+            --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 16px/1.4 "Segoe UI", system-ui, sans-serif; }
+        body { display: flex; flex-direction: column; min-height: 100vh; touch-action: manipulation; user-select: none; }
+        header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+            background: linear-gradient(100deg, var(--brand-deep) 0%, #14449a 70%, #1f5fff 100%); border-bottom: 4px solid var(--accent); }
+        #logo { height: 32px; width: auto; display: block; }
+        header b { font-size: 18px; letter-spacing: .1em; }
+        header .role { font-size: 13px; color: #b9cbe8; }
+        .conn { margin-left: auto; font-size: 12px; color: #b9cbe8; display: inline-flex; align-items: center; gap: 6px; }
+        .conn::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2fd07a; }
+        .conn.off::before { background: #ff4d4d; }
+        main { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; max-width: 560px; width: 100%; margin: 0 auto; }
+        section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+        .clock { border-top: 6px solid var(--accent); text-align: center; }
+        .readout { font: 700 clamp(72px, 24vw, 132px)/1 var(--mono); color: var(--timer); font-variant-numeric: tabular-nums; }
+        .readout.alarm { color: var(--alarm); }
+        .status { color: var(--dim); min-height: 1.4em; margin-top: 4px; }
+        button { font: inherit; color: inherit; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+        button:active:not(:disabled) { filter: brightness(1.3); }
+        button:disabled { opacity: .4; cursor: default; }
+        button.on { background: #1d4a8f; border-color: var(--sky); box-shadow: inset 0 0 0 1px var(--sky); }
+        .main-btns { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-top: 14px; }
+        .main-btns button { font-size: 26px; padding: 22px 0; font-weight: 700; }
+        #bToggle.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+        #bToggle.warn { background: var(--sky); border-color: var(--sky); color: #04142b; }
+        #bReset { font-size: 17px; font-weight: 400; }
+        h2 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+        .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .grid4 button, .grid2 button { padding: 12px 0; font-family: var(--mono); font-size: 16px; border-radius: 10px; }
+        .grid2 button { font-family: inherit; }
+        .gap { height: 10px; }
+        .hint { margin: 10px 0 0; color: var(--dim); font-size: 12px; }
+        .teams { display: grid; gap: 6px; }
+        .tm { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+        .tm:last-child { border-bottom: 0; }
+        .tm .n { font: 700 16px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tm .s { font: 700 26px var(--mono); }
+        .none { color: var(--dim); font-size: 14px; }
+        .exit { align-self: flex-start; font-size: 14px; padding: 8px 14px; border-radius: 9px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <header>
+        <img id="logo" src="/logo.png" alt="">
+        <b>ТГАСУ</b><span class="role">пульт хронометриста</span>
+        <span class="conn off" id="conn">нет связи…</span>
+    </header>
+    <main>
+        <section class="clock">
+            <div class="readout" id="read">00:00</div>
+            <div class="status" id="status">—</div>
+            <div class="main-btns">
+                <button id="bToggle" class="go">Старт</button>
+                <button id="bReset">Сбросить</button>
+            </div>
+        </section>
+
+        <section id="setup">
+            <h2>Режим и время</h2>
+            <div class="grid2" id="modes">
+                <button data-mode="down">Обратный отсчёт</button>
+                <button data-mode="up">Секундомер</button>
+            </div>
+            <div class="gap"></div>
+            <div class="grid4" id="adjust">
+                <button data-d="-60">−1:00</button><button data-d="-10">−0:10</button>
+                <button data-d="10">+0:10</button><button data-d="60">+1:00</button>
+            </div>
+            <div class="gap"></div>
+            <div class="grid4" id="presets">
+                <button data-sec="600">10:00</button><button data-sec="300">5:00</button>
+                <button data-sec="180">3:00</button><button data-sec="60">1:00</button>
+            </div>
+            <p class="hint" id="setupHint">Режим и время можно менять, пока таймер не запущен и сброшен.</p>
+        </section>
+
+        <section>
+            <h2>Счёт команд</h2>
+            <div class="teams" id="teams"></div>
+            <p class="hint">Счёт ведут судьи команд; здесь он только для просмотра.</p>
+        </section>
+
+        <button class="exit" id="bExit">Выйти</button>
+    </main>
+    <script src="/render.js"></script>
+    <script src="/net.js"></script>
+    <script src="/timer.js"></script>
+</body>
+</html>

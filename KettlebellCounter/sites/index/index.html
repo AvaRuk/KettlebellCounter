@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self'">
+    <title>ТГАСУ — гиревой спорт</title>
+    <style>
+        :root {
+            --brand-deep: #0b2a5b; --accent: #e5007d; --accent-hi: #ff1a94; --sky: #3d9bff;
+            --bg: #08172e; --panel: #0f2547; --line: #23467a; --text: #eef3fb; --dim: #8fa6c7;
+            --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 16px/1.4 "Segoe UI", system-ui, sans-serif; }
+        body { display: flex; flex-direction: column; min-height: 100vh; }
+        header { display: flex; align-items: center; gap: 14px; padding: 12px 20px;
+            background: linear-gradient(100deg, var(--brand-deep) 0%, #14449a 70%, #1f5fff 100%); border-bottom: 4px solid var(--accent); }
+        #logo { height: 40px; width: auto; display: block; }
+        .brand { display: flex; flex-direction: column; line-height: 1.15; }
+        .brand b { font-size: 24px; letter-spacing: .14em; font-weight: 800; }
+        .brand span { font-size: 12px; color: #b9cbe8; }
+        main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .card { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-top: 6px solid var(--accent);
+            border-radius: 12px; padding: 22px; }
+        h1 { margin: 0 0 6px; font-size: 22px; }
+        p { margin: 0 0 16px; color: var(--dim); font-size: 14px; }
+        input { width: 100%; font: 700 28px var(--mono); letter-spacing: .3em; text-align: center; color: inherit;
+            background: #0a1c38; border: 1px solid var(--line); border-radius: 9px; padding: 12px 10px; }
+        input:focus { outline: none; border-color: #1f5fff; box-shadow: 0 0 0 2px rgba(31,95,255,.35); }
+        button { width: 100%; margin-top: 12px; font: 700 18px "Segoe UI", system-ui, sans-serif; color: #fff; background: var(--accent);
+            border: 1px solid var(--accent); border-radius: 9px; padding: 12px; cursor: pointer; }
+        button:hover:not(:disabled) { background: var(--accent-hi); }
+        button:disabled { opacity: .5; cursor: default; }
+        .err { min-height: 1.4em; margin: 10px 0 0; color: #ff6b61; font-size: 14px; }
+        .links { margin-top: 14px; text-align: center; font-size: 14px; }
+        .links a { color: var(--sky); }
+    </style>
+</head>
+<body>
+    <header>
+        <img id="logo" src="/logo.png" alt="">
+        <div class="brand"><b>ТГАСУ</b><span>Томский государственный архитектурно-строительный университет</span></div>
+    </header>
+    <main>
+        <form class="card" id="form" autocomplete="off">
+            <h1>Гиревой спорт</h1>
+            <p>Введите PIN-код: судья команды попадёт к своему счётчику, хронометрист — к пульту таймера, главный судья — в админ-панель.</p>
+            <input id="pin" type="password" inputmode="numeric" maxlength="12" autofocus placeholder="••••">
+            <button id="go" type="submit">Войти</button>
+            <div class="err" id="err"></div>
+            <div class="links"><a href="/display">Открыть табло</a></div>
+        </form>
+    </main>
+    <script src="/net.js"></script>
+    <script src="/index.js"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 # Зависимости
 node_modules/
+obj/
 
 # Результат сборки
 dist/
@@ -27,9 +28,10 @@ settings.json
 .DS_Store
 Thumbs.db
 desktop.ini
+eslint.config.js
 
 # Редакторы
-.vscode/
+.vs/
 .idea/
 *.swp
 *~

@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self'">
+    <title>ТГАСУ — гиревой спорт: пульт управления</title>
+    <style>
+        /* ===== TGASU brand colors — change them here ===== */
+        :root {
+            --brand: #1f5fff; /* primary blue */
+            --brand-deep: #0b2a5b; /* deep blue (header) */
+            --accent: #e5007d; /* brand crimson */
+            --accent-hi: #ff1a94; /* crimson on hover */
+            --accent-soft: #ff6db4; /* light crimson for text on a dark background */
+            --sky: #3d9bff; /* light blue */
+
+            --bg: #08172e;
+            --panel: #0f2547;
+            --panel-2: #14305b;
+            --line: #23467a;
+            --text: #eef3fb;
+            --dim: #8fa6c7;
+            --alarm: #ff3b30;
+            /* The values below are filled in automatically from the selected display color scheme */
+            --timer: #ffffff;
+            --t1: #e5007d;
+            --t2: #3d9bff;
+            --frame: #1f5fff;
+            --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font: 15px/1.4 "Segoe UI", system-ui, sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .noselect {
+            user-select: none;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            background: linear-gradient(100deg, var(--brand-deep) 0%, #14449a 70%, #1f5fff 100%);
+            border-bottom: 4px solid var(--accent);
+        }
+
+        #logo {
+            height: 40px;
+            width: auto;
+            display: block;
+        }
+
+        .brand {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.15;
+        }
+
+            .brand b {
+                font-size: 24px;
+                letter-spacing: .14em;
+                font-weight: 800;
+            }
+
+                .brand b::after {
+                    content: '';
+                    display: inline-block;
+                    width: 8px;
+                    height: 8px;
+                    margin-left: 8px;
+                    border-radius: 50%;
+                    background: var(--accent);
+                    vertical-align: middle;
+                }
+
+            .brand span {
+                font-size: 12px;
+                color: #b9cbe8;
+            }
+
+        header .title {
+            margin-left: auto;
+            text-align: right;
+            line-height: 1.2;
+        }
+
+            header .title b {
+                font-size: 17px;
+                color: #fff;
+                font-weight: 700;
+                display: block;
+            }
+
+            header .title span {
+                font-size: 12px;
+                color: #b9cbe8;
+            }
+
+        .conn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+            .conn::before {
+                content: '';
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #2fd07a;
+            }
+
+            .conn.off::before {
+                background: #ff4d4d;
+            }
+
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+            gap: 16px;
+            padding: 16px 20px 20px;
+        }
+
+        .col {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        section {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        h2 {
+            margin: 0 0 10px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--dim);
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        button, select, input {
+            font: inherit;
+            color: inherit;
+        }
+
+        button {
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            padding: 9px 14px;
+            cursor: pointer;
+        }
+
+            button:hover:not(:disabled) {
+                background: #1b3d72;
+                border-color: #3566a8;
+            }
+
+            button:disabled, input:disabled, select:disabled {
+                opacity: .4;
+                cursor: default;
+            }
+
+            button.go {
+                background: var(--accent);
+                border-color: var(--accent);
+                color: #fff;
+                font-weight: 700;
+            }
+
+                button.go:hover:not(:disabled) {
+                    background: var(--accent-hi);
+                    border-color: var(--accent-hi);
+                }
+
+            button.warn {
+                background: var(--sky);
+                border-color: var(--sky);
+                color: #04142b;
+                font-weight: 700;
+            }
+
+                button.warn:hover:not(:disabled) {
+                    background: #66b2ff;
+                    border-color: #66b2ff;
+                }
+
+        .team button.go {
+            background: var(--c);
+            border-color: var(--c);
+        }
+
+            .team button.go:hover:not(:disabled) {
+                filter: brightness(1.15);
+                background: var(--c);
+                border-color: var(--c);
+            }
+
+        button.on {
+            background: #1d4a8f;
+            border-color: var(--sky);
+            box-shadow: inset 0 0 0 1px var(--sky);
+        }
+
+        input[type=number], input[type=text], select {
+            background: #0a1c38;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            padding: 8px 10px;
+        }
+
+            input:focus, select:focus {
+                outline: none;
+                border-color: var(--brand);
+                box-shadow: 0 0 0 2px rgba(31,95,255,.35);
+            }
+
+            input[type=number]::-webkit-inner-spin-button {
+                display: none;
+            }
+
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Timer */
+        .timer {
+            border-top: 4px solid var(--frame);
+        }
+
+        .readout {
+            font: 700 96px/1 var(--mono);
+            letter-spacing: 2px;
+            color: var(--timer);
+            margin-bottom: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+
+            .readout.alarm {
+                color: var(--alarm);
+            }
+
+        .status {
+            color: var(--dim);
+            margin: 0 0 14px;
+            min-height: 1.4em;
+        }
+
+        #bToggle {
+            min-width: 160px;
+            font-size: 18px;
+            padding: 12px 18px;
+        }
+
+        .setup {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--line);
+        }
+
+            .setup label {
+                color: var(--dim);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .setup input {
+                width: 64px;
+                text-align: center;
+            }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+            .chips button {
+                padding: 6px 11px;
+                font-family: var(--mono);
+                font-size: 13px;
+            }
+
+        #modes button {
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        /* Teams */
+        .teams {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .team {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-top: 6px solid var(--c);
+            border-radius: 12px;
+            padding: 14px 16px 16px;
+        }
+
+        .team-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .team h2 {
+            margin: 0;
+            color: var(--text);
+            font-size: 15px;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .team .where {
+            margin: 0 0 6px;
+            color: var(--dim);
+            font-size: 13px;
+        }
+
+        .team .rm {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            font-size: 14px;
+            line-height: 1;
+            color: var(--dim);
+            background: transparent;
+        }
+
+            .team .rm:hover:not(:disabled) {
+                color: #fff;
+                background: var(--alarm);
+                border-color: var(--alarm);
+            }
+
+        .count {
+            width: 100%;
+            background: transparent;
+            border: 0;
+            border-bottom: 1px solid var(--line);
+            border-radius: 0;
+            font: 700 84px/1.1 var(--mono);
+            text-align: center;
+            color: var(--c);
+            padding: 0;
+        }
+
+            .count:focus {
+                outline: none;
+                box-shadow: none;
+                border-bottom-color: var(--c);
+            }
+
+        .team .row {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+        }
+
+            .team .row button {
+                font-size: 22px;
+                padding: 12px 0;
+            }
+
+        .team .keys {
+            margin: 10px 0 0;
+            color: var(--dim);
+            font-size: 13px;
+        }
+
+        .name {
+            width: 100%;
+            margin: 2px 0 6px;
+            font: 700 17px var(--mono);
+            color: var(--c);
+            text-transform: uppercase;
+        }
+
+            .name:focus {
+                border-color: var(--c);
+                box-shadow: none;
+            }
+
+        .cut {
+            margin: 0 0 6px;
+            color: #ffb300;
+            font-size: 12px;
+        }
+
+        /* Scoreboard */
+        .meta {
+            color: var(--dim);
+            margin: 0 0 4px;
+            font-size: 13px;
+        }
+
+        .displays {
+            margin: 0 0 12px;
+            padding: 0;
+            list-style: none;
+            font-size: 14px;
+        }
+
+            .displays li::before {
+                content: '●';
+                color: #2fd07a;
+                margin-right: 8px;
+            }
+
+            .displays li.none::before {
+                color: #ff4d4d;
+            }
+
+        .block {
+            margin-top: 14px;
+        }
+
+            .block > p {
+                margin: 0 0 6px;
+                color: var(--dim);
+                font-size: 13px;
+            }
+
+        select {
+            width: 100%;
+        }
+
+        .hint {
+            color: var(--dim);
+            font-size: 12px;
+            margin: 6px 0 0;
+        }
+
+        .url {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+            .url code {
+                flex: 1;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                background: #0a1c38;
+                border: 1px solid var(--line);
+                border-radius: 9px;
+                padding: 8px 10px;
+                font: 14px var(--mono);
+                color: var(--accent-soft);
+                user-select: all;
+            }
+
+            .url a {
+                color: var(--sky);
+                font-size: 13px;
+            }
+
+        .colors {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 14px;
+            margin-top: 10px;
+        }
+
+            .colors label {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                color: var(--dim);
+                font-size: 13px;
+            }
+
+        input[type=color] {
+            width: 46px;
+            height: 30px;
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: none;
+            cursor: pointer;
+        }
+
+        .check {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        input[type=checkbox] {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+        }
+
+        .checks {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .keys-list {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 12px;
+            margin: 0;
+            font-size: 13px;
+        }
+
+            .keys-list dt {
+                font-family: var(--mono);
+                color: var(--accent-soft);
+            }
+
+            .keys-list dd {
+                margin: 0;
+                color: var(--dim);
+            }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 860px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            .readout {
+                font-size: 72px;
+            }
+
+            header .title {
+                display: none;
+            }
+        }
+
+        .pinbox { font: 700 15px var(--mono); color: var(--accent-soft); background: #0a1c38; border: 1px solid var(--line);
+            border-radius: 6px; padding: 2px 8px; user-select: all; }
+        .team .pins { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
+        .team .pins button { padding: 3px 9px; font-size: 12px; margin-left: auto; }
+        .team .row .reset { grid-column: 1 / -1; font-size: 13px; padding: 6px 0; }
+        .team .pins a { color: var(--sky); font-size: 13px; }
+        .team .pins.tbl button { margin-left: auto; }
+        .tcolors { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0 0; color: var(--dim); font-size: 13px; }
+        .tcolors label { display: flex; align-items: center; gap: 6px; }
+        .tcolors button { padding: 3px 9px; font-size: 12px; margin-left: auto; }
+        .timerbox { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--dim); font-size: 13px; }
+        .timerbox button { padding: 3px 9px; font-size: 12px; margin-left: auto; }
+        .adminbox { display: flex; gap: 8px; align-items: center; }
+        .adminbox input { flex: 1; min-width: 0; font-family: var(--mono); }
+        .note { margin: 8px 0 0; font-size: 13px; min-height: 1.3em; color: var(--dim); }
+        .note.bad { color: #ff6b61; }
+    </style>
+</head>
+<body>
+    <header>
+        <img id="logo" src="logo.png" alt="">
+        <div class="brand"><b>ТГАСУ</b><span>Томский государственный архитектурно-строительный университет</span></div>
+        <div class="title"><b>Гиревой спорт</b><span class="conn off" id="conn">пульт управления табло</span></div>
+    </header>
+
+    <main>
+        <div class="col">
+            <section class="timer noselect">
+                <div class="readout" id="read">10:00</div>
+                <p class="status" id="status">Готов</p>
+                <div class="row">
+                    <button id="bToggle" class="go">Старт</button>
+                    <button id="bReset">Сбросить таймер</button>
+                </div>
+                <div class="row setup">
+                    <div class="chips" id="modes">
+                        <button data-mode="down">Обратный отсчёт</button>
+                        <button data-mode="up">Секундомер</button>
+                    </div>
+                    <label>Время <input id="mm" type="number" min="0" max="99"> : <input id="ss" type="number" min="0" max="59"></label>
+                    <div class="chips" id="presets">
+                        <button data-sec="600">10:00</button><button data-sec="300">5:00</button>
+                        <button data-sec="180">3:00</button><button data-sec="60">1:00</button>
+                    </div>
+                </div>
+                <div class="row setup" id="relayBox">
+                    <label class="check"><input type="checkbox" id="rOn"> Командная эстафета</label>
+                    <label>Участников в команде <input id="rLegs" type="number" min="2" max="6" value="3" style="width:60px"></label>
+                    <label>Счёт следующего участника
+                        <select id="rCarry"><option value="0">с нуля</option><option value="1">с текущего количества</option></select>
+                    </label>
+                    <p class="hint" id="rInfo" style="flex-basis:100%;margin:0"></p>
+                </div>
+            </section>
+
+            <!-- Team cards are created in index.js -->
+            <div class="teams" id="teams"></div>
+
+            <div class="row">
+                <button id="bAddTeam" class="go">+ Добавить команду</button>
+                <button id="bResetCounts">Обнулить все счётчики</button>
+            </div>
+        </div>
+
+        <div class="col">
+            <section>
+                <h2>Табло</h2>
+                <ul class="displays" id="displays"></ul>
+
+                <div class="block">
+                    <p>Общее табло (все команды) — откройте в браузере на компьютере у панели. Табло отдельной команды — ссылка в её карточке</p>
+                    <div id="urls"></div>
+                    <p class="hint">На том компьютере нажмите <b>F</b> или дважды щёлкните по экрану — табло развернётся на весь экран.</p>
+                </div>
+
+                <div class="block">
+                    <p>Цвета общего табло</p>
+                    <select id="pal"></select>
+                    <div class="colors">
+                        <label>Рамка <input type="color" id="col-frame"></label>
+                        <label>Линии между командами <input type="color" id="col-line"></label>
+                        <label>Таймер <input type="color" id="col-timer"></label>
+                        <label>Команды 1, 3, 5… (по умолч.) <input type="color" id="col-t1"></label>
+                        <label>Команды 2, 4, 6… (по умолч.) <input type="color" id="col-t2"></label>
+                        <label>Тревога <input type="color" id="col-alarm"></label>
+                    </div>
+                    <div class="checks">
+                        <label class="check"><input type="checkbox" id="showNames"> Показывать названия команд на табло</label>
+                        <label class="check"><input type="checkbox" id="showLeader"> На табло отдельной команды (?team=) показывать счёт лидера</label>
+                        <label class="check"><input type="checkbox" id="showFrame"> Рамка вокруг табло</label>
+                        <label class="check"><input type="checkbox" id="rounded"> Скруглённые цифры и рамка</label>
+                    </div>
+                    <p class="hint">Цвета названия, счёта, огранки (цветная рамка вокруг ячейки команды на общем табло) и всего табло отдельной команды (адрес с ?team=) настраиваются в её карточке. Выбор готовой схемы сбрасывает их. Тревога — цвет таймера в последние 10 секунд; по окончании времени рамка тоже становится этого цвета. На очень маленьких панелях скругление лучше отключить.</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Генератор ссылок для табло</h2>
+                <div class="block" style="margin-top:0">
+                    <p>Настройки из ссылки действуют только на то табло, где она открыта, и перекрывают общие настройки. Отмеченное галочкой попадает в адрес, остальное берётся из настроек сервера.</p>
+                    <div class="row">
+                        <label>Табло <select id="gTeam"></select></label>
+                        <label>Схема <select id="gPal"></select></label>
+                    </div>
+                    <div class="colors" id="gColors"></div>
+                    <div class="row" id="gFlags"></div>
+                    <div class="row">
+                        <label>Размер панели, пикселей <input type="number" id="gW" value="320" min="16" max="16384" style="width:80px"> × <input type="number" id="gH" value="192" min="16" max="16384" style="width:80px"></label>
+                    </div>
+                    <div class="url"><code id="gUrl"></code><button id="gCopy">Копировать</button><a id="gOpen" target="_blank">Открыть</a></div>
+                    <iframe id="gPrev" title="Предпросмотр табло" style="width:100%;border:1px solid var(--line);border-radius:9px;background:#000;margin-top:10px;aspect-ratio:320/192"></iframe>
+                    <p class="hint">Параметры адреса: <code>team</code> (номер команды), <code>pal</code> (0–6), цвета <code>timer frame line alarm t1 t2 nameColor countColor edge</code> (hex без #, например <code>timer=ffffff</code>), переключатели <code>names leader frame round</code> (0 или 1).</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Доступ</h2>
+                <div class="block" style="margin-top:0">
+                    <p>Судьи команд и хронометрист входят на <b id="ctlUrl">главной странице сервера</b>: судья команды — по PIN из карточки своей команды, хронометрист — по PIN ниже.</p>
+                    <p>Пульт хронометриста: только таймер (старт, пауза, сброс, время и режим), счёт команд ему доступен для просмотра.</p>
+                    <div class="timerbox">PIN хронометриста: <span class="pinbox" id="timerPin"></span><button id="bTimerPin">Новый PIN</button></div>
+                    <p>PIN администратора</p>
+                    <div class="adminbox">
+                        <input id="newPin" type="text" maxlength="12" placeholder="Новый PIN (4–12 символов)" autocomplete="off">
+                        <button id="bSetPin">Сменить</button>
+                    </div>
+                    <p class="note" id="pinNote"></p>
+                    <div class="row" style="margin-top:8px"><button id="bExit">Выйти</button></div>
+                </div>
+            </section>
+
+            <section class="noselect">
+                <h2>Клавиши админ-панели</h2>
+                <dl class="keys-list">
+                    <dt>Пробел / Enter</dt><dd>старт / пауза</dd>
+                    <dt>1 … 8</dt><dd>команда с этим номером: +1 (Shift: −1)</dd>
+                    <dt>← →</dt><dd>время ±1 мин (Shift: ±10 с)</dd>
+                    <dt>R · Delete</dt><dd>сброс таймера · обнулить счёт</dd>
+                    <dt>T · C</dt><dd>режим таймера · цвета</dd>
+                </dl>
+            </section>
+        </div>
+    </main>
+
+    <script src="/render.js"></script>
+    <script src="/net.js"></script>
+    <script src="/adminpanel.js"></script>
+</body>
+</html>
