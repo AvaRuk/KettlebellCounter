@@ -1,0 +1,71 @@
+/* Site themes (look of the web pages: login, admin panel, timekeeper, team judge).
+   Every page takes its interface colors from the variables below; the theme is picked in the header
+   of each page and is remembered on that device (see theme.js).
+   The LED scoreboard (/display) is not affected: it has its own colors, set in the admin panel. */
+
+/* ---- ТГАСУ (default) ---- */
+:root {
+    --bg: #08172e; --panel: #0f2547; --panel-2: #14305b; --line: #23467a;
+    --text: #eef3fb; --dim: #8fa6c7;
+    --brand: #1f5fff; --accent: #e5007d; --accent-hi: #ff1a94; --accent-soft: #ff6db4; --sky: #3d9bff;
+    --on-accent: #ffffff; --on-warn: #04142b;
+    --head-1: #0b2a5b; --head-2: #14449a; --head-3: #1f5fff; --head-dim: #b9cbe8;
+    --input: #0a1c38; --hover: #1b3d72; --hover-line: #3566a8; --on: #1d4a8f; --warn-hover: #66b2ff;
+    --ring: rgba(31,95,255,.35); --link: #3d9bff; --err: #ff6b61; --amber: #ffb300;
+    color-scheme: dark;
+}
+
+/* ---- Графит ---- */
+:root[data-theme="graphite"] {
+    --bg: #15171c; --panel: #1e2128; --panel-2: #2a2e38; --line: #3a3f4c;
+    --text: #eceef2; --dim: #9aa1b0;
+    --brand: #5b8def; --accent: #ff7a1a; --accent-hi: #ff9448; --accent-soft: #ffa866; --sky: #6ea8ff;
+    --on-accent: #ffffff; --on-warn: #04142b;
+    --head-1: #101216; --head-2: #1b1e25; --head-3: #2a2e38; --head-dim: #aab1bf;
+    --input: #12141a; --hover: #343946; --hover-line: #566074; --on: #2c4a7a; --warn-hover: #8fbcff;
+    --ring: rgba(91,141,239,.40); --link: #7db3ff; --err: #ff7a70; --amber: #ffc233;
+    color-scheme: dark;
+}
+
+/* ---- Светлая ---- */
+:root[data-theme="light"] {
+    --bg: #eef2f8; --panel: #ffffff; --panel-2: #e6ecf6; --line: #c5d0e2;
+    --text: #13233f; --dim: #5a6b88;
+    --brand: #1f5fff; --accent: #d4006f; --accent-hi: #ef2b8b; --accent-soft: #c4006c; --sky: #1f6fe0;
+    --on-accent: #ffffff; --on-warn: #ffffff;
+    --head-1: #0b2a5b; --head-2: #14449a; --head-3: #1f5fff; --head-dim: #cfdcf2;
+    --input: #ffffff; --hover: #d9e4f6; --hover-line: #8fa9d6; --on: #cfe0ff; --warn-hover: #4f93ec;
+    --ring: rgba(31,95,255,.30); --link: #1456d6; --err: #c62828; --amber: #a86400;
+    color-scheme: light;
+}
+/* Team colors are LED colors chosen for a black panel — on a light page they would be unreadable (yellow, green…),
+   so everything that shows them (timer readout, team name, score) gets a dark "screen" behind it */
+:root[data-theme="light"] .readout { background: #0b1220; border-radius: 12px; padding: 2px 16px; display: inline-block; }
+:root[data-theme="light"] .team .count,
+:root[data-theme="light"] .team .name { background: #0b1220; border-radius: 8px; border-bottom-color: transparent; }
+:root[data-theme="light"] .team .name { padding-left: 10px; padding-right: 10px; }
+:root[data-theme="light"] .tm { background: #0b1220; border-radius: 8px; padding: 6px 10px; border-bottom-color: transparent; }
+
+/* ---- Контрастная ---- */
+:root[data-theme="contrast"] {
+    --bg: #000000; --panel: #0a0a0a; --panel-2: #1a1a1a; --line: #7a7a7a;
+    --text: #ffffff; --dim: #d0d0d0;
+    --brand: #ffd400; --accent: #ffd400; --accent-hi: #ffe34d; --accent-soft: #ffd400; --sky: #00c8ff;
+    --on-accent: #000000; --on-warn: #000000;
+    --head-1: #000000; --head-2: #0c0c0c; --head-3: #1c1c1c; --head-dim: #e0e0e0;
+    --input: #000000; --hover: #2a2a2a; --hover-line: #ffffff; --on: #003a66; --warn-hover: #66dcff;
+    --ring: rgba(255,212,0,.55); --link: #4dd2ff; --err: #ff6b6b; --amber: #ffd400;
+    color-scheme: dark;
+}
+
+/* ---- Page header: dark in every theme, so its text is always white (not the page's text color) ---- */
+header { color: #fff; flex-wrap: wrap; row-gap: 6px; }
+
+/* ---- Theme picker in the page header ---- */
+header select.themepick {
+    width: auto; margin-left: 14px; padding: 5px 8px; cursor: pointer;
+    font: 13px "Segoe UI", system-ui, sans-serif; color: #fff;
+    background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.38); border-radius: 8px;
+}
+header select.themepick:focus { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,.35); border-color: #fff; }
+.themepick option { background: #14213a; color: #eef3fb; }

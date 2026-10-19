@@ -24,7 +24,8 @@ $('name').oninput = () => send({ type: 'teamSetName', name: $('name').value });
 $('name').onblur = () => apply();
 
 document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }
+    // Fields and the theme picker keep their own keys (otherwise the arrows / Space would change the score)
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'Enter') { e.preventDefault(); if (!e.repeat) send({ type: 'localCountUp' }); }
     else if (e.code === 'ArrowDown' || e.code === 'Backspace') { e.preventDefault(); if (!e.repeat) send({ type: 'localCountDown' }); }
@@ -41,8 +42,10 @@ function apply() {
 
     const idx = st.teams.indexOf(team);
     const root = document.documentElement.style;
-    root.setProperty('--c', team.countColor || KB.teamColor(st.colors, idx));
-    $('name').style.color = team.nameColor || KB.teamColor(st.colors, idx);
+    const base = KB.teamColor(team, idx);
+    root.setProperty('--c', team.countColor || base);
+    root.setProperty('--c-ink', KB.ink(team.countColor || base));
+    $('name').style.color = team.nameColor || base;
     root.setProperty('--timer', st.colors.timer);
     root.setProperty('--alarm', st.colors.alarm);
 

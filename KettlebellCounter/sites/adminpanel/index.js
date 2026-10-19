@@ -3,9 +3,9 @@ const $ = (id) => document.getElementById(id);
 const send = (a) => NET.action(a);
 
 let st = null;
-let info = { displays: [], urls: [], controllerUrls: [] };
+let info = { displays: [], urls: [], controllerUrls: [], ifaces: [] };
 
-const COLOR_KEYS = ['timer', 't1', 't2', 'alarm', 'frame', 'line'];
+const COLOR_KEYS = ['timer', 'alarm', 'frame', 'line'];
 const MAX_TEAMS = 8;
 
 // The logo is optional: if there is no logo.png file, hide the image
@@ -30,17 +30,17 @@ const setDuration = () => send({ type: 'globalSetDuration', sec: (+$('mm').value
 $('mm').onchange = setDuration;
 $('ss').onchange = setDuration;
 
-const sendRelay = () => send({ type: 'globalSetRelay', on: $('rOn').checked, legs: +$('rLegs').value || 3, carry: $('rCarry').value === '1' });
-$('rOn').onchange = $('rLegs').onchange = $('rCarry').onchange = sendRelay;
+// Relay is one of the three timer modes (buttons with data-mode); here — only its settings, shown while the mode is selected
+const sendRelay = () => send({ type: 'globalSetRelay', on: true, legs: +$('rLegs').value || 3, carry: $('rCarry').value === '1' });
+$('rLegs').onchange = $('rCarry').onchange = sendRelay;
 
 $('showNames').onchange = () => send({ type: 'globalSetShowNames', value: $('showNames').checked });
 $('showLeader').onchange = () => send({ type: 'globalSetShowLeader', value: $('showLeader').checked });
+$('legsPos').onchange = () => send({ type: 'globalSetLegsPos', value: $('legsPos').value });
+$('leaderPos').onchange = () => send({ type: 'globalSetLeaderPos', value: $('leaderPos').value });
 $('showFrame').onchange = () => send({ type: 'globalSetFrame', value: $('showFrame').checked });
 $('rounded').onchange = () => send({ type: 'globalSetRounded', value: $('rounded').checked });
 
-KB.PALETTES.forEach((p, i) => $('pal').add(new Option(p.name, i)));
-$('pal').add(new Option('Свои цвета', -1));
-$('pal').onchange = () => { const v = +$('pal').value; if (v >= 0) send({ type: 'globalSetPal', pal: v }); };
 COLOR_KEYS.forEach((k) => ($('col-' + k).oninput = () => send({ type: 'globalSetColor', key: k, value: $('col-' + k).value })));
 
 // Changing the admin PIN
@@ -78,7 +78,6 @@ function keyToAction(e) {
         case 'Delete': return { type: 'globalResetCounts' };
         case 'KeyR': return { type: 'globalResetTime' };
         case 'KeyT': return { type: 'globalToggleMode' };
-        case 'KeyC': return { type: 'globalCyclePal' };
         case 'ArrowLeft': return { type: 'globalAdjustDuration', delta: e.shiftKey ? -10 : -60 };
         case 'ArrowRight': return { type: 'globalAdjustDuration', delta: e.shiftKey ? 10 : 60 };
     }
@@ -108,7 +107,7 @@ function makeCard(t) {
         <input class="count" type="number" min="0" max="999" value="0">
         <div class="row"><button class="dn">−1</button><button class="go up">+1</button></div>
         <p class="keys"></p>
-        <p class="tcolors"><label>Цвет названия <input type="color" class="cn"></label><label>Цвет счёта <input type="color" class="cc"></label><button class="cr" title="Вернуть цвета по схеме">По схеме</button></p>
+        <p class="tcolors"><label>Цвет названия <input type="color" class="cn"></label><label>Цвет счёта <input type="color" class="cc"></label><button class="cr" title="Вернуть цвета команды по умолчанию">Сбросить</button></p>
         <p class="tcolors"><label>Огранка на общем табло <input type="color" class="ce"></label><button class="cer" title="Убрать огранку">Убрать</button></p>
         <p class="tcolors"><span>Табло команды:</span><label>Таймер <input type="color" class="dc" data-k="timer"></label><label>Рамка <input type="color" class="dc" data-k="frame"></label><label>Тревога <input type="color" class="dc" data-k="alarm"></label></p>
         <p class="pins tbl"><span>Табло команды:</span><a class="tlink" target="_blank">Открыть</a><button class="tcopy">Копировать адрес</button></p>
@@ -143,7 +142,32 @@ function makeCard(t) {
     return c;
 }
 
-const displayBase = () => (info.base && info.base[0]) || location.origin;
+// ---------- Address (IP) used in the links ----------
+// The computer may have several adapters (Wi-Fi, cable, VPN, virtual) — the user picks the one the displays can reach.
+// By default — the first one. The choice is remembered on this device and is shared by the generator, team cards and the login address.
+const HOST_KEY = 'kbHost';
+let chosenBase = '';
+try { chosenBase = localStorage.getItem(HOST_KEY) || ''; } catch { }
+
+function hostOptions() {
+    const src = info.ifaces && info.ifaces.length
+        ? info.ifaces
+        : (info.base || []).map((u) => ({ url: u, address: u.replace(/^https?:\/\//, ''), name: '' }));
+    const list = src.map((i) => ({ url: i.url, label: i.name ? `${i.address} — ${i.name}` : i.address }));
+    if (!list.some((o) => o.url === location.origin)) list.push({ url: location.origin, label: `${location.host} — адрес этой страницы` });
+    return list;
+}
+const displayBase = () => { const o = hostOptions(); return (o.find((x) => x.url === chosenBase) || o[0]).url; };
+
+function applyHosts() {
+    const sel = $('gHost'), opts = hostOptions(), key = JSON.stringify(opts);
+    if (sel.dataset.key !== key) { sel.textContent = ''; opts.forEach((o) => sel.add(new Option(o.label, o.url))); sel.dataset.key = key; }
+    sel.value = displayBase();
+}
+function refreshLinks() {
+    if (st) { applyTeams(); applyGenerator(); }
+    $('ctlUrl').textContent = displayBase() + '/';
+}
 
 function applyTeams() {
     const box = $('teams');
@@ -153,9 +177,10 @@ function applyTeams() {
         let c = cards.get(t.id);
         if (!c) { c = makeCard(t); cards.set(t.id, c); }
         if (box.children[i] !== c.el) box.insertBefore(c.el, box.children[i] || null);   // same order as on the display
-        const base = KB.teamColor(st.colors, i);
+        const base = KB.teamColor(t, i);
         const nameCol = t.nameColor || base, countCol = t.countColor || base;
         c.el.style.setProperty('--c', countCol);
+        c.el.style.setProperty('--c-ink', KB.ink(countCol));
         c.name.style.color = nameCol;
         if (document.activeElement !== c.cn) c.cn.value = nameCol;
         if (document.activeElement !== c.cc) c.cc.value = countCol;
@@ -189,16 +214,15 @@ function applyState() {
     $('status').textContent = st.finished ? 'Время вышло' : st.running ? 'Идёт' : paused ? 'Пауза' : 'Готов';
 
     const rl = st.relay || { on: false, legs: 3, carry: false };
-    document.querySelectorAll('[data-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.mode === st.mode); b.disabled = !idle || rl.on; });
+    const mode = rl.on ? 'relay' : st.mode;   // three modes in one row: countdown / stopwatch / relay
+    document.querySelectorAll('[data-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.mode === mode); b.disabled = !idle; });
     const canSet = idle && st.mode === 'down';
-    $('rOn').checked = rl.on;
+    $('relayBox').classList.toggle('hidden', !rl.on);
     if (document.activeElement !== $('rLegs')) $('rLegs').value = rl.legs;
     $('rCarry').value = rl.carry ? '1' : '0';
-    $('rOn').disabled = $('rLegs').disabled = $('rCarry').disabled = !idle;
+    $('rLegs').disabled = $('rCarry').disabled = !idle;
     const leg = st.duration / rl.legs, fmtLeg = Number.isInteger(leg) ? KB.fmt(leg) : `${KB.fmt(Math.floor(leg))} (≈${leg.toFixed(1)} с)`;
-    $('rInfo').textContent = rl.on
-        ? `Общее время ${KB.fmt(st.duration)}, на каждого из ${rl.legs} — по ${fmtLeg}. Результат участника уходит наверх ячейки команды, когда его время закончилось; в конце внизу — общая сумма. Менять настройки можно, пока таймер сброшен.`
-        : 'Выключено: обычный режим.';
+    $('rInfo').textContent = `Общее время ${KB.fmt(st.duration)}, на каждого из ${rl.legs} — по ${fmtLeg}. Результат участника уходит наверх ячейки команды, когда его время закончилось; в конце внизу — общая сумма. Менять настройки можно, пока таймер сброшен.`;
     document.querySelectorAll('[data-sec]').forEach((b) => (b.disabled = !canSet));
     $('mm').disabled = $('ss').disabled = !canSet;
     if (document.activeElement !== $('mm')) $('mm').value = Math.floor(st.duration / 60);
@@ -208,15 +232,15 @@ function applyState() {
     $('timerPin').textContent = st.timerPIN ?? '';
     $('showNames').checked = st.showNames;
     $('showLeader').checked = st.showLeader !== false;
+    $('legsPos').value = st.legsPos || 'top';
+    $('leaderPos').value = st.leaderPos || 'bottom';
     $('showFrame').checked = st.frame !== false;
     $('rounded').checked = st.rounded !== false;
 
     const c = st.colors;
-    $('pal').value = KB.PALETTES.findIndex((p) => p.timer === c.timer && p.t1 === c.t1 && p.t2 === c.t2 && p.frame === c.frame && (c.line || c.frame) === p.frame);
     COLOR_KEYS.forEach((k) => { if (document.activeElement !== $('col-' + k)) $('col-' + k).value = c[k] || c.frame; });
     const root = document.documentElement.style;
     root.setProperty('--timer', c.timer); root.setProperty('--frame', c.frame); root.setProperty('--alarm', c.alarm);
-    root.setProperty('--t1', c.t1); root.setProperty('--t2', c.t2);
     checkFit();
     tick();
 }
@@ -257,23 +281,22 @@ function applyInfo() {
         urls.appendChild(row);
     });
     if (st) { applyTeams(); applyGenerator(); }
-    $('ctlUrl').textContent = (info.controllerUrls[0] || location.origin) + '/';
+    $('ctlUrl').textContent = displayBase() + '/';
     checkFit();
     tick();
 }
 
 // ---------- Display link generator ----------
-const G_COLORS = [['timer', 'Таймер'], ['frame', 'Рамка'], ['line', 'Линии'], ['alarm', 'Тревога'], ['t1', 'Команды 1, 3, 5…'], ['t2', 'Команды 2, 4, 6…'],
+const G_COLORS = [['timer', 'Таймер'], ['frame', 'Рамка'], ['line', 'Линии'], ['alarm', 'Тревога'],
     ['nameColor', 'Название команды'], ['countColor', 'Счёт команды'], ['edge', 'Огранка (общее табло)']];
 const G_FLAGS = [['names', 'Названия'], ['leader', 'Счёт лидера'], ['frame', 'Рамка табло'], ['round', 'Скруглённые цифры']];
+const G_POS = [['legsPos', 'Счёт участников эстафеты'], ['leaderPos', 'Счёт лидера']];
 const gColor = {};   // key -> { on, val }
 let gBuilt = false;
 
 function buildGenerator() {
     if (gBuilt) return;
     gBuilt = true;
-    const pal = $('gPal');
-    pal.innerHTML = '<option value="">как в настройках</option>' + KB.PALETTES.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
     const box = $('gColors');
     G_COLORS.forEach(([k, label]) => {
         const l = document.createElement('label');
@@ -293,16 +316,27 @@ function buildGenerator() {
         sel.onchange = genUpdate;
         l.appendChild(sel); fl.appendChild(l);
     });
-    for (const id of ['gTeam', 'gPal', 'gW', 'gH']) $(id).onchange = $(id).oninput = genUpdate;
+    G_POS.forEach(([k, label]) => {
+        const l = document.createElement('label'); l.append(label + ' ');
+        const sel = document.createElement('select'); sel.dataset.pos = k;
+        sel.innerHTML = '<option value="">как в настройках</option><option value="top">сверху</option><option value="bottom">снизу</option><option value="left">слева</option><option value="right">справа</option>';
+        sel.onchange = genUpdate;
+        l.appendChild(sel); fl.appendChild(l);
+    });
+    for (const id of ['gTeam', 'gW', 'gH']) $(id).onchange = $(id).oninput = genUpdate;
+    $('gHost').onchange = () => {
+        chosenBase = $('gHost').value;
+        try { localStorage.setItem(HOST_KEY, chosenBase); } catch { }
+        refreshLinks();
+    };
     $('gCopy').onclick = () => { copyText($('gUrl').textContent); $('gCopy').textContent = 'Скопировано'; setTimeout(() => ($('gCopy').textContent = 'Копировать'), 1500); };
 }
 
 function genQuery(extra) {
     const q = [];
     if ($('gTeam').value) q.push('team=' + $('gTeam').value);
-    if ($('gPal').value) q.push('pal=' + $('gPal').value);
     for (const [k] of G_COLORS) if (gColor[k].cb.checked) q.push(k + '=' + gColor[k].inp.value.slice(1));
-    document.querySelectorAll('#gFlags select').forEach((s) => { if (s.value) q.push(s.dataset.flag + '=' + s.value); });
+    document.querySelectorAll('#gFlags select').forEach((s) => { if (s.value) q.push((s.dataset.flag || s.dataset.pos) + '=' + s.value); });
     return q.concat(extra || []);
 }
 
@@ -320,6 +354,7 @@ function genUpdate() {
 
 function applyGenerator() {
     buildGenerator();
+    applyHosts();
     const sel = $('gTeam'), cur = sel.value;
     const html = '<option value="">общее (все команды)</option>' + st.teams.map((t) => `<option value="${t.id}">${t.name || 'Команда ' + t.id} (team=${t.id})</option>`).join('');
     if (sel.dataset.html !== html) { sel.innerHTML = html; sel.dataset.html = html; }

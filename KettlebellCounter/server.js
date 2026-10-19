@@ -5,7 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { PALETTES } = require('./sites/render.js');   // shared list of color schemes
+const { DEFAULT_COLORS, TEAM_COLORS } = require('./sites/render.js');   // shared default colors
 
 const args = process.argv.slice(2);
 const getArg = (n) => { const a = args.find((x) => x.startsWith(`--${n}=`)); return a ? a.slice(n.length + 3) : null; };
@@ -26,18 +26,21 @@ const FILES = {
     '/timer.js': 'timer/index.js',
     '/net.js': 'net.js',
     '/render.js': 'render.js',
+    '/theme.js': 'theme.js',
+    '/theme.css': 'theme.css',
     '/logo.png': 'logo.png'
 };
 const TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
     '.png': 'image/png'
 };
 const MAX_TEAMS = 8;
 const MAX_NAME = 14;
 const MAX_LEGS = 6;
 const MAX_DURATION = 99 * 60 + 59;
-const COLOR_KEYS = ['timer', 't1', 't2', 'alarm', 'frame'];   // required colors of a scheme
+const COLOR_KEYS = ['timer', 'alarm', 'frame'];               // required display colors
 const DISPLAY_KEYS = ['timer', 'frame', 'alarm'];             // colors that can be set separately for a single-team display (?team=)
 const SET_KEYS = [...COLOR_KEYS, 'line'];                    // can be changed one at a time; line — separators (same as the frame by default)
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -60,6 +63,8 @@ function saveSettings() {
         settings.frame = STATE.frame;
         settings.showNames = STATE.showNames;
         settings.showLeader = STATE.showLeader;
+        settings.legsPos = STATE.legsPos;
+        settings.leaderPos = STATE.leaderPos;
         settings.relay = STATE.relay;
         settings.adminPIN = adminPIN;
         settings.timerPIN = timerPIN;
@@ -84,11 +89,8 @@ function cleanDisplayColors(o) {
     if (o && typeof o === 'object') for (const k of DISPLAY_KEYS) if (HEX.test(o[k])) out[k] = o[k].toLowerCase();
     return out;
 }
-const presetColors = (i) => {
-    const { timer, t1, t2, alarm, frame } = PALETTES[i];
-    return { timer, t1, t2, alarm, frame, line: frame };
-};
-const sameScheme = (c, p) => c.timer === p.timer && c.t1 === p.t1 && c.t2 === p.t2 && c.frame === p.frame && (c.line || c.frame) === p.frame;
+// Each team has its own color: the first one from the list that no other team uses
+const pickTeamColor = (taken) => TEAM_COLORS.find((c) => !taken.includes(c)) || TEAM_COLORS[taken.length % TEAM_COLORS.length];
 
 const generate4DigitId = () => Math.floor(1000 + Math.random() * 9000).toString();
 // A team's (and the timekeeper's) PIN must not match the admin PIN or any other role's PIN
@@ -106,11 +108,13 @@ let timerPIN = '';   // Timekeeper PIN; assigned below, once the team PINs are k
 let nextTeamId = Number(settings.nextTeamId) || 1;
 let teams = [];
 if (Array.isArray(settings.teams)) {
+    const taken = [];   // colors already given out (teams saved before per-team colors existed get distinct ones)
     teams = settings.teams.slice(0, MAX_TEAMS).map((t) => ({
         id: Number(t.id),
         name: cleanName(t.name),
         PIN: String(t.PIN),
         reps: clamp(Math.round(Number(t.reps) || 0), 0, 999),
+        color: (() => { const c = HEX.test(t.color) ? t.color.toLowerCase() : pickTeamColor(taken); taken.push(c); return c; })(),
         nameColor: HEX.test(t.nameColor) ? t.nameColor : null,
         countColor: HEX.test(t.countColor) ? t.countColor : null,
         edgeColor: HEX.test(t.edgeColor) ? t.edgeColor : null,
@@ -120,7 +124,7 @@ if (Array.isArray(settings.teams)) {
     nextTeamId = Math.max(nextTeamId, ...teams.map((t) => t.id + 1), 1);
 }
 if (!teams.length && !Array.isArray(settings.teams)) {
-    for (let i = 0; i < 2; i++) teams.push({ id: nextTeamId++, name: 'КОМАНДА ' + (i + 1), PIN: uniquePIN(), reps: 0, nameColor: null, countColor: null, edgeColor: null, displayColors: {}, legs: [], legBase: 0 });
+    for (let i = 0; i < 2; i++) teams.push({ id: nextTeamId++, name: 'КОМАНДА ' + (i + 1), PIN: uniquePIN(), reps: 0, color: pickTeamColor(teams.map((t) => t.color)), nameColor: null, countColor: null, edgeColor: null, displayColors: {}, legs: [], legBase: 0 });
 }
 // Timekeeper PIN: taken from settings if it still doesn't clash with anything, otherwise a new one
 {
@@ -131,17 +135,21 @@ if (!teams.length && !Array.isArray(settings.teams)) {
 const STATE = {
     running: false, finished: false,
     elapsed: 0, startedAt: 0, duration: 600, mode: 'down',
-    colors: presetColors(0), rounded: true, frame: true, showNames: true, showLeader: true,
+    colors: { ...DEFAULT_COLORS }, rounded: true, frame: true, showNames: true, showLeader: true,
+    legsPos: 'top', leaderPos: 'bottom',   // where the relay results / the leader's score are drawn relative to the main score: top | bottom | left | right
     relay: { on: false, legs: 3, carry: false }   // relay: legs = participants per team, carry = the next participant's count continues from the current value
 };
 if (settings.duration) STATE.duration = clamp(settings.duration, 10, MAX_DURATION);
 if (settings.mode === 'up' || settings.mode === 'down') STATE.mode = settings.mode;
 if (settings.colors && COLOR_KEYS.every((k) => HEX.test(settings.colors[k])))
-    STATE.colors = { ...settings.colors, line: HEX.test(settings.colors.line) ? settings.colors.line : settings.colors.frame };
+    STATE.colors = { timer: settings.colors.timer, alarm: settings.colors.alarm, frame: settings.colors.frame, line: HEX.test(settings.colors.line) ? settings.colors.line : settings.colors.frame };
 if (typeof settings.rounded === 'boolean') STATE.rounded = settings.rounded;
 if (typeof settings.frame === 'boolean') STATE.frame = settings.frame;
 if (typeof settings.showNames === 'boolean') STATE.showNames = settings.showNames;
 if (typeof settings.showLeader === 'boolean') STATE.showLeader = settings.showLeader;
+const POSITIONS = ['top', 'bottom', 'left', 'right'];
+if (POSITIONS.includes(settings.legsPos)) STATE.legsPos = settings.legsPos;
+if (POSITIONS.includes(settings.leaderPos)) STATE.leaderPos = settings.leaderPos;
 if (settings.relay && typeof settings.relay === 'object')
     STATE.relay = { on: !!settings.relay.on, legs: clamp(Math.round(Number(settings.relay.legs) || 3), 2, MAX_LEGS), carry: !!settings.relay.carry };
 if (STATE.relay.on) STATE.mode = 'down';
@@ -154,17 +162,20 @@ const isIdle = () => !STATE.running && STATE.elapsed === 0 && !STATE.finished;
 
 //Broadcast
 // Everyone sees team names and scores; only the admin receives PIN codes
-const publicState = () => ({ ...STATE, teams: teams.map(({ id, name, reps, nameColor, countColor, edgeColor, displayColors, legs, legBase }) => ({ id, name, reps, nameColor, countColor, edgeColor, displayColors, legs, legBase })) });
+const publicState = () => ({ ...STATE, teams: teams.map(({ id, name, reps, color, nameColor, countColor, edgeColor, displayColors, legs, legBase }) => ({ id, name, reps, color, nameColor, countColor, edgeColor, displayColors, legs, legBase })) });
 const adminState = () => ({ ...STATE, timerPIN, teams: teams.map((t) => ({ ...t })) });
 
-function lanUrls() {
+// Network adapters of this computer: the admin panel lets the user choose which IP goes into the links
+function lanList() {
     const out = [];
-    for (const list of Object.values(os.networkInterfaces()))
+    for (const [name, list] of Object.entries(os.networkInterfaces()))
         for (const i of list || [])
-            if (i.family === 'IPv4' && !i.internal) out.push(`http://${i.address}${PORT === 80 ? '' : ':' + PORT}`);
+            if (i.family === 'IPv4' && !i.internal) out.push({ name, address: i.address, url: `http://${i.address}${PORT === 80 ? '' : ':' + PORT}` });
     return out;
 }
+const lanUrls = () => lanList().map((i) => i.url);
 const getInfo = () => ({
+    ifaces: lanList(),
     displays: [...displays.entries()].map(([id, d]) => ({ id, w: d.w, h: d.h, team: d.team })),
     urls: lanUrls().map((u) => u + '/display'),
     controllerUrls: lanUrls(),
@@ -215,6 +226,16 @@ setInterval(() => {
     }
     if (STATE.relay.on && (STATE.running || STATE.finished) && relayAdvance()) { saveSettings(); broadcastState(); }
 }, 100);
+
+// ----- Modes -----
+// relay is stored as STATE.relay.on (the countdown is split between participants); the other two as STATE.mode
+const MODES = ['down', 'up', 'relay'];
+const currentMode = () => (STATE.relay.on ? 'relay' : STATE.mode);
+function setMode(m) {
+    if (m === 'relay') { STATE.relay.on = true; STATE.mode = 'down'; }   // relay — countdown only
+    else { STATE.relay.on = false; STATE.mode = m; }
+    relayClear();
+}
 
 //Authorization
 // Determine the role by PIN: admin or a judge of one of the teams
@@ -274,19 +295,20 @@ function handle(a, auth) {
             if (!canTime || !Number.isFinite(a.delta)) return false;
             if (isIdle() && STATE.mode === 'down') STATE.duration = clamp(STATE.duration + a.delta, 10, MAX_DURATION);
             break;
+        // Three modes in one row: countdown, stopwatch, relay (a countdown split between participants)
         case 'globalSetMode':
-            if (!canTime || (a.mode !== 'down' && a.mode !== 'up')) return false;
-            if (isIdle() && !STATE.relay.on) STATE.mode = a.mode;
+            if (!canTime || !MODES.includes(a.mode)) return false;
+            if (isIdle()) setMode(a.mode);
             break;
         case 'globalToggleMode':
             if (!canTime) return false;
-            if (isIdle() && !STATE.relay.on) STATE.mode = STATE.mode === 'down' ? 'up' : 'down';
+            if (isIdle()) setMode(MODES[(MODES.indexOf(currentMode()) + 1) % MODES.length]);
             break;
         case 'globalSetRelay':
             if (!admin) return false;
             if (isIdle()) {
                 STATE.relay = {
-                    on: !!a.on,
+                    on: a.on === undefined ? STATE.relay.on : !!a.on,
                     legs: clamp(Math.round(Number(a.legs) || STATE.relay.legs), 2, MAX_LEGS),
                     carry: !!a.carry
                 };
@@ -307,18 +329,6 @@ function handle(a, auth) {
             break;
 
         // ----- Scoreboard appearance: admin only -----
-        case 'globalSetPal':
-            if (!admin || !Number.isInteger(a.pal) || !PALETTES[a.pal]) return false;
-            STATE.colors = presetColors(a.pal);
-            teams.forEach((t) => { t.nameColor = t.countColor = t.edgeColor = null; t.displayColors = {}; });   // a scheme recolors everything, teams included
-            break;
-        case 'globalCyclePal': {
-            if (!admin) return false;
-            const cur = PALETTES.findIndex((p) => sameScheme(STATE.colors, p));
-            STATE.colors = presetColors((cur + 1) % PALETTES.length);
-            teams.forEach((t) => { t.nameColor = t.countColor = t.edgeColor = null; t.displayColors = {}; });
-            break;
-        }
         case 'globalSetColor':
             if (!admin || !SET_KEYS.includes(a.key) || !HEX.test(a.value)) return false;
             STATE.colors = { ...STATE.colors, [a.key]: a.value.toLowerCase() };
@@ -339,6 +349,14 @@ function handle(a, auth) {
             if (!admin) return false;
             STATE.showLeader = !!a.value;
             break;
+        case 'globalSetLegsPos':
+            if (!admin || !POSITIONS.includes(a.value)) return false;
+            STATE.legsPos = a.value;
+            break;
+        case 'globalSetLeaderPos':
+            if (!admin || !POSITIONS.includes(a.value)) return false;
+            STATE.leaderPos = a.value;
+            break;
 
         // ----- Teams: admin only -----
         case 'teamAdd':
@@ -348,6 +366,7 @@ function handle(a, auth) {
                 name: 'КОМАНДА ' + nextTeamId,
                 PIN: uniquePIN(),
                 reps: 0,
+                color: pickTeamColor(teams.map((t) => t.color)),
                 nameColor: null,
                 countColor: null,
                 edgeColor: null,
@@ -365,7 +384,7 @@ function handle(a, auth) {
             team.PIN = uniquePIN();
             break;
 
-        // Color of a single team's name / score; value: null — back to the scheme color
+        // Color of a single team's name / score; value: null — back to the team's own color
         case 'teamSetColor':
             if (!admin || !needTeam() || (a.part !== 'name' && a.part !== 'count')) return false;
             if (a.value !== null && !HEX.test(a.value)) return false;

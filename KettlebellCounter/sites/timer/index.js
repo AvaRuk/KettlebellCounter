@@ -22,6 +22,7 @@ document.querySelectorAll('[data-sec]').forEach((b) => (b.onclick = () => send({
 document.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => send({ type: 'globalAdjustDuration', delta: +b.dataset.d })));
 
 document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }   // the theme picker: arrows / Space belong to it
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     let a = null;
     switch (e.code) {
@@ -46,7 +47,7 @@ function applyTeams() {
     box.textContent = '';
     if (!st.teams.length) { const d = document.createElement('div'); d.className = 'none'; d.textContent = 'Команд нет'; box.appendChild(d); return; }
     st.teams.forEach((t, i) => {
-        const base = KB.teamColor(st.colors, i);
+        const base = KB.teamColor(t, i);
         const row = document.createElement('div'); row.className = 'tm';
         const n = document.createElement('span'); n.className = 'n'; n.textContent = t.name || `Команда ${i + 1}`; n.style.color = t.nameColor || base;
         const s = document.createElement('span'); s.className = 's'; s.textContent = t.reps; s.style.color = t.countColor || base;
@@ -67,11 +68,14 @@ function apply() {
     $('bReset').disabled = st.running || idle;
     $('status').textContent = st.finished ? 'Время вышло' : st.running ? 'Идёт' : paused ? 'Пауза' : 'Готов';
 
-    document.querySelectorAll('[data-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.mode === st.mode); b.disabled = !idle; });
+    const rl = st.relay || { on: false, legs: 3 };
+    const mode = rl.on ? 'relay' : st.mode;   // three modes: countdown / stopwatch / relay
+    document.querySelectorAll('[data-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.mode === mode); b.disabled = !idle; });
     const canSet = idle && st.mode === 'down';
     document.querySelectorAll('[data-sec], [data-d]').forEach((b) => (b.disabled = !canSet));
     $('setupHint').textContent = !idle ? 'Время и режим меняются только при сброшенном таймере.'
-        : st.mode === 'up' ? 'В режиме секундомера время не задаётся.'
+        : mode === 'up' ? 'В режиме секундомера время не задаётся.'
+        : mode === 'relay' ? `Эстафета: общее время ${KB.fmt(st.duration)}, участников в команде — ${rl.legs} (задаёт администратор). Клавиши: ← → ±1 мин, Shift+← → ±10 с.`
         : 'Установлено: ' + KB.fmt(st.duration) + '. Клавиши: ← → ±1 мин, Shift+← → ±10 с.';
 
     const root = document.documentElement.style;

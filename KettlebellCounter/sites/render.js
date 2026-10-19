@@ -1,21 +1,15 @@
 // Shared code: scene rendering for the LED panel (any number of teams) and time helper functions.
-// Loaded on both the display page and the control page (there — only to check whether the names fit); the server takes the list of color schemes from here.
+// Loaded on both the display page and the control page (there — only to check whether the names fit); the server takes the default colors from here.
 (function () {
   const SEG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg' };
   const U_DIGIT = 0.55, U_COLON = 0.17, U_GAP = 0.16;   // in fractions of the digit height
 
-  // Saturated colors: half-tones are unreadable on LEDs, while warm and cool shades are easy to tell apart
-  const PALETTES = [
-    // TGASU theme: brand crimson E5007D and blue. Dark blue is invisible on the panel's black background,
-    // so a brighter blue is used for the display — adjust to the brand book if needed.
-    { name: 'ТГАСУ: малиновый и синий', frame: '#1f5fff', timer: '#ffffff', t1: '#e5007d', t2: '#3d9bff', alarm: '#ff3b30' },
-    { name: 'Классика: янтарь, зелёный, голубой', frame: '#ffc400', timer: '#ffc400', t1: '#3cff7a', t2: '#3cc8ff', alarm: '#ff2d2d' },
-    { name: 'Огонь и лёд: оранжевый и синий', frame: '#ffffff', timer: '#ffffff', t1: '#ff6a1a', t2: '#2ea8ff', alarm: '#ff2d2d' },
-    { name: 'Неон: розовый и бирюзовый', frame: '#8a5cff', timer: '#fff200', t1: '#ff2fa0', t2: '#19f0d2', alarm: '#ff2d2d' },
-    { name: 'Всё янтарным (монохромная панель)', frame: '#ffb000', timer: '#ffb000', t1: '#ffb000', t2: '#ffb000', alarm: '#ffb000' },
-    { name: 'Всё зелёным (монохромная панель)', frame: '#00ff00', timer: '#00ff00', t1: '#00ff00', t2: '#00ff00', alarm: '#00ff00' },
-    { name: 'Всё красным (монохромная панель)', frame: '#ff0000', timer: '#ff0000', t1: '#ff0000', t2: '#ff0000', alarm: '#ff0000' },
-  ];
+  // Saturated colors: half-tones are unreadable on LEDs, while warm and cool shades are easy to tell apart.
+  // Colors of the display itself (timer, frame, separators, alarm) — the same for all teams:
+  const DEFAULT_COLORS = { timer: '#ffffff', alarm: '#ff3b30', frame: '#1f5fff', line: '#1f5fff' };
+  // Every team has its own color (name, score, card). New teams get the first color of this list that no other team uses.
+  // Dark blue is invisible on the panel's black background, so a brighter blue is used — adjust to the brand book if needed.
+  const TEAM_COLORS = ['#e5007d', '#3d9bff', '#3cff7a', '#ff8a1a', '#a56bff', '#19e0c8', '#ffd400', '#ff5a5a'];
 
   // ---------- 5×7 pixel font (Latin, Cyrillic, digits) ----------
   const F = (s) => s.split('/');
@@ -144,13 +138,80 @@
     return { s, h: 8 * s + Math.max(1, Math.floor(s / 2)), maxChars };
   }
 
-  // Relay results row above the score: "42 38 -" (one slot per participant). The scale is computed for 3 digits per slot
-  function legsFit(N, cw, ch) {
-    const none = { s: 0, h: 0 };
+  // Sides where the relay results and the leader can be placed relative to the main score
+  const POS = ['top', 'bottom', 'left', 'right'];
+  const DEFAULT_LEGS_POS = 'top', DEFAULT_LEADER_POS = 'bottom';
+  const normPos = (v, def) => (POS.includes(v) ? v : def);
+
+  // Relay results: on top/bottom — one row "42 38 -" (one slot per participant, scale computed for 3 digits per slot),
+  // on left/right — a column, one participant per line. Returns the scale s and the band size (height for a row, width for a column)
+  function legsFit(N, cw, ch, pos, availH) {
+    const none = { s: 0, size: 0 };
     if (!N) return none;
+    if (pos === 'left' || pos === 'right') {
+      const s = Math.min(Math.floor((cw * 0.22) / 17), Math.floor(availH / (8 * N)));
+      return s < 1 ? none : { s, size: 17 * s + 2 * s };
+    }
     const chars = 4 * N - 1;
     const s = Math.min(Math.floor(cw / (6 * chars - 1)), Math.floor((ch * 0.22) / 9));
-    return s < 1 ? none : { s, h: 8 * s + Math.max(1, Math.floor(s / 2)) };
+    return s < 1 ? none : { s, size: 8 * s + Math.max(1, Math.floor(s / 2)) };
+  }
+
+  // Cuts a band of the given size from the rectangle on the given side; returns { band, rest }
+  function carve(r, pos, size) {
+    size = Math.max(0, Math.min(size, pos === 'top' || pos === 'bottom' ? r.h : r.w));
+    if (pos === 'top') return { band: { x: r.x, y: r.y, w: r.w, h: size }, rest: { x: r.x, y: r.y + size, w: r.w, h: r.h - size } };
+    if (pos === 'bottom') return { band: { x: r.x, y: r.y + r.h - size, w: r.w, h: size }, rest: { x: r.x, y: r.y, w: r.w, h: r.h - size } };
+    if (pos === 'left') return { band: { x: r.x, y: r.y, w: size, h: r.h }, rest: { x: r.x + size, y: r.y, w: r.w - size, h: r.h } };
+    return { band: { x: r.x + r.w - size, y: r.y, w: size, h: r.h }, rest: { x: r.x, y: r.y, w: r.w - size, h: r.h } };
+  }
+
+  // Leader block ("ЛИДЕР" + score) inside its band: top/bottom — in one line, left/right — the label above the number.
+  // Returns { ls, vertical, nw, ndh } or null if it doesn't fit
+  function leaderFit(band, pos) {
+    if (pos === 'left' || pos === 'right') {
+      const ls = Math.min(Math.floor(band.w / 29), Math.floor(band.h * 0.14 / 7));
+      if (ls < 1) return null;
+      const gapL = 2 * ls;
+      const ndh = Math.max(3, fitDh('000', band.w, Math.max(3, Math.floor(band.h * 0.4))));
+      const nw = Math.min(band.w, geometry('000', ndh).total);
+      return { ls, vertical: true, gapL, nw, ndh, total: 7 * ls + gapL + ndh };
+    }
+    const lh = band.h;
+    const ls = Math.min(Math.floor(lh / 9), Math.floor((band.w * 0.45) / 29));
+    if (ls < 1) return null;
+    // The label and the number form one group centered in the band; the number width is computed for 3 digits so the group doesn't "wander"
+    const tw = 29 * ls, gapL = 2 * ls;
+    const ndh = Math.max(3, fitDh('000', band.w - tw - gapL, lh));
+    const nw = Math.min(band.w - tw - gapL, geometry('000', ndh).total);
+    return { ls, vertical: false, tw, gapL, nw, ndh };
+  }
+
+  // Layout inside a team cell (relative to the cell's corner): name on top, then the relay results band, the leader band
+  // (each on its own side) and the main score in what is left. opt: { legsN, legsPos, leader, leaderPos }
+  function cellLayout(cw, ch, nh, opt) {
+    let rest = { x: 0, y: nh, w: cw, h: ch - nh };
+    let legs = null, leader = null;
+    if (opt.legsN) {
+      const lp = normPos(opt.legsPos, DEFAULT_LEGS_POS);
+      const f = legsFit(opt.legsN, cw, ch, lp, rest.h);
+      if (f.s > 0) {
+        const r = carve(rest, lp, f.size);
+        legs = { ...f, pos: lp, rect: r.band };
+        rest = r.rest;
+      }
+    }
+    if (opt.leader) {
+      const ldp = normPos(opt.leaderPos, DEFAULT_LEADER_POS);
+      const size = ldp === 'top' || ldp === 'bottom' ? Math.floor(rest.h * 0.36) : Math.floor(rest.w * 0.3);
+      const r = carve(rest, ldp, size);
+      const f = leaderFit(r.band, ldp);
+      if (f) {
+        leader = { ...f, pos: ldp, rect: r.band };
+        rest = r.rest;
+      }
+    }
+    return { legs, leader, main: rest };
   }
 
   // ---------- Seven-segment digits ----------
@@ -315,7 +376,7 @@
 
   // Layout: timer on top, below it a grid of team cells (rows × cols), with separators between cells.
   // Each cell has the name on top and the score below it.
-  function plan(W, H, m, rows, cols, n, sample, names, show, legsN) {
+  function plan(W, H, m, rows, cols, n, sample, names, show, opt) {
     const aw = W - 2 * m;
     let frac;
     if (n === 0) frac = 0.6;
@@ -348,19 +409,19 @@
     }
     for (let r = 0; r < usedRows - 1; r++) lines.push({ x: m, y: by + (r + 1) * ch + r * gy + pad, w: aw, h: line });
     const nf = nameFit(names, cw, ch, show);
-    const rf = legsFit(legsN, cw, ch);
-    const dh = n ? fitDh(sample, cw, ch - nf.h - rf.h) : 0;
-    return { rows, cols, timer: { x: m, y: m, w: aw, h: th }, cells, lines, nf, rf, dh, pad, line };
+    const inner = cellLayout(cw, ch, nf.h, opt);
+    const dh = n ? fitDh(sample, inner.main.w, inner.main.h) : 0;
+    return { rows, cols, timer: { x: m, y: m, w: aw, h: th }, cells, lines, nf, inner, dh, pad, line };
   }
 
   // Try all grids (single column, single row, square) and pick the one where the score ends up largest
-  function bestPlan(W, H, m, n, sample, names, show, legsN) {
-    if (n <= 1) return plan(W, H, m, 1, 1, n, sample, names, show, legsN);
+  function bestPlan(W, H, m, n, sample, names, show, opt) {
+    if (n <= 1) return plan(W, H, m, 1, 1, n, sample, names, show, opt);
     let best = null;
     for (let cols = 1; cols <= n; cols++) {
       const rows = Math.ceil(n / cols);
       if ((cols - 1) * rows >= n) continue;   // the last column would be empty
-      const p = plan(W, H, m, rows, cols, n, sample, names, show, legsN);
+      const p = plan(W, H, m, rows, cols, n, sample, names, show, opt);
       if (!best || p.dh > best.dh) best = p;
     }
     return best;
@@ -378,8 +439,10 @@
     return Math.min(N - 1, Math.floor(elapsedOf(st) * N / (st.duration * 1000)));
   }
 
-  // Team color by index: even and odd teams get different colors
-  const teamColor = (colors, i) => (i % 2 === 0 ? colors.t1 : colors.t2);
+  // A team's own color; if it has none (old data), a default one by position in the list
+  const teamColor = (t, i) => (t && /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : TEAM_COLORS[(i || 0) % TEAM_COLORS.length]);
+  // Text color (black or white) that stays readable on top of the given background color
+  const ink = (hex) => { const [r, g, b] = hexRgb(hex); return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#000' : '#fff'; };
 
   // ---------- Time ----------
   // The timer is based on server time: net.js computes the offset to this computer's clock
@@ -413,13 +476,13 @@
     const n = teams.length;
     const names = teams.map((t) => String(t.name ?? ''));
     const show = st.showNames !== false;
-    const colors = st.colors || PALETTES[0];
+    const colors = st.colors || DEFAULT_COLORS;
     const round = st.rounded !== false;
     const f = st.frame !== false ? Math.max(1, Math.round(Math.min(W, H) * 0.02)) : 0;   // frame thickness
     const m = Math.max(1, Math.round(Math.min(W, H) * 0.04)) + f;
     const sample = '000';   // computed for 3 digits so the layout doesn't jump at 99 → 100
     const legsN = st.relay && st.relay.on ? st.relay.legs : 0;
-    const L = bestPlan(W, H, m, n, sample, names, show, legsN);
+    const L = bestPlan(W, H, m, n, sample, names, show, { legsN, legsPos: st.legsPos, leader: !!st.leader && n === 1, leaderPos: st.leaderPos });
 
     const blink = Math.floor(now() / 500) % 2 === 0;
     const paused = !st.running && !st.finished && st.elapsed > 0;
@@ -442,9 +505,9 @@
     const cut = names.map(() => false);
     L.cells.forEach((c, i) => {
       const { s, h: nh, maxChars } = L.nf;
-      const h = nh + L.rf.h;   // height of the name and the relay results row
-      const base = teamColor(colors, i + (st.colorOffset || 0));
-      const nameCol = teams[i].nameColor || base, countCol = teams[i].countColor || base;   // colorOffset — a single-team display keeps that team's color
+      const { legs, leader, main } = L.inner;
+      const base = teamColor(teams[i], i);
+      const nameCol = teams[i].nameColor || base, countCol = teams[i].countColor || base;
       if (s > 0 && names[i]) {
         const txt = names[i].slice(0, maxChars);
         const tw = txt.length * 6 * s - s;
@@ -453,38 +516,50 @@
       } else if (show && names[i]) {
         cut[i] = true;   // there is no room for names at all
       }
-      // Relay: participants' results above the score; when time is up, the score below is the overall total
+      // Relay: participants' results next to the score (on the chosen side); when time is up, the score is the overall total
       let big = teams[i].reps ?? 0;
       if (legsN) {
         const lg = teams[i].legs || [];
-        if (L.rf.s > 0) {
-          const txt = Array.from({ length: legsN }, (_, k) => (lg[k] === undefined ? '-' : String(lg[k]))).join(' ');
-          const tw = txt.length * 6 * L.rf.s - L.rf.s;
-          drawText(ctx, txt, c.x + Math.max(0, Math.floor((c.w - tw) / 2)), c.y + nh, L.rf.s, countCol);
+        const val = (k) => (lg[k] === undefined ? '-' : String(lg[k]));
+        if (legs) {
+          const r = legs.rect, ls = legs.s;
+          if (legs.pos === 'left' || legs.pos === 'right') {
+            // A column: one participant per line, centered in the band
+            const colH = legsN * 8 * ls - ls, y0 = c.y + r.y + Math.max(0, Math.floor((r.h - colH) / 2));
+            const inner = r.w - 2 * ls;   // the band has a gap of 2·ls on the side facing the score
+            const x0 = c.x + r.x + (legs.pos === 'left' ? 0 : 2 * ls);
+            for (let k = 0; k < legsN; k++) {
+              const txt = val(k), tw = txt.length * 6 * ls - ls;
+              drawText(ctx, txt, x0 + Math.max(0, Math.floor((inner - tw) / 2)), y0 + k * 8 * ls, ls, countCol);
+            }
+          } else {
+            const txt = Array.from({ length: legsN }, (_, k) => val(k)).join(' ');
+            const tw = txt.length * 6 * ls - ls;
+            drawText(ctx, txt, c.x + r.x + Math.max(0, Math.floor((r.w - tw) / 2)), c.y + r.y, ls, countCol);
+          }
         }
         if (st.finished) big = teamTotal(st, teams[i]);   // during a leg — the participant's counter (from zero or from the current value), at the end — the overall total
       }
-      // Single-team display: at the bottom of the cell — the "ЛИДЕР" (leader) line and the leader's score
-      let lh = 0;
-      if (st.leader && n === 1) {
-        lh = Math.floor((c.h - h) * 0.36);
-        const ls = Math.min(Math.floor(lh / 9), Math.floor((c.w * 0.45) / 29));
-        if (ls >= 1) {
-          // The label and the number form one group centered in the cell; the number width is computed for 3 digits so the group doesn't "wander"
-          const ly = c.y + c.h - lh, tw = 29 * ls, gapL = 2 * ls;
-          const ndh = Math.max(3, fitDh('000', c.w - tw - gapL, lh));
-          const nw = Math.min(c.w - tw - gapL, geometry('000', ndh).total);
-          const gx0 = c.x + Math.floor((c.w - (tw + gapL + nw)) / 2);
-          drawText(ctx, 'ЛИДЕР', gx0, ly + Math.floor((lh - 7 * ls) / 2), ls, st.leader.color);
-          drawNumber(ctx, String(st.leader.reps), gx0 + tw + gapL, ly, nw, lh, st.leader.color, round);
-        } else lh = 0;
+      // Single-team display: the "ЛИДЕР" (leader) label and the leader's score, on the chosen side of the score
+      if (leader) {
+        const r = leader.rect, { ls } = leader, col = st.leader.color;
+        if (leader.vertical) {
+          const y0 = c.y + r.y + Math.max(0, Math.floor((r.h - leader.total) / 2));
+          const lx = c.x + r.x + Math.floor((r.w - 29 * ls) / 2);
+          drawText(ctx, 'ЛИДЕР', lx, y0, ls, col);
+          drawNumber(ctx, String(st.leader.reps), c.x + r.x, y0 + 7 * ls + leader.gapL, r.w, leader.ndh, col, round);
+        } else {
+          const gx0 = c.x + r.x + Math.floor((r.w - (leader.tw + leader.gapL + leader.nw)) / 2);
+          drawText(ctx, 'ЛИДЕР', gx0, c.y + r.y + Math.floor((r.h - 7 * ls) / 2), ls, col);
+          drawNumber(ctx, String(st.leader.reps), gx0 + leader.tw + leader.gapL, c.y + r.y, leader.nw, r.h, col, round);
+        }
       }
-      drawNumber(ctx, String(big), c.x, c.y + h, c.w, c.h - h - lh, countCol, round);
+      drawNumber(ctx, String(big), c.x + main.x, c.y + main.y, main.w, main.h, countCol, round);
     });
     return { rows: L.rows, cols: L.cols, cut };
   }
 
-  const KB = { PALETTES, teamTotal, relayLeg, draw, elapsedOf, secondsOf, fmt, isAlarm, teamColor, setClockOffset: (v) => { clockOffset = v; }, _font: FONT };
+  const KB = { DEFAULT_COLORS, TEAM_COLORS, POS, DEFAULT_LEGS_POS, DEFAULT_LEADER_POS, teamTotal, relayLeg, draw, elapsedOf, secondsOf, fmt, isAlarm, teamColor, ink, setClockOffset: (v) => { clockOffset = v; }, _font: FONT };
   if (typeof window !== 'undefined') window.KB = KB;
   if (typeof module !== 'undefined' && module.exports) module.exports = KB;
 })();
