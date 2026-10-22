@@ -31,9 +31,8 @@
         .status { color: var(--dim); font-size: 14px; }
         .team { flex: 1; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
             border-top: 6px solid var(--c); border-radius: 12px; padding: 12px 14px 14px; }
-        .name { width: 100%; font: 700 20px var(--mono); color: var(--c); text-transform: uppercase; background: transparent;
-            border: 0; border-bottom: 1px solid var(--line); padding: 4px 0; }
-        .name:focus { outline: none; border-bottom-color: var(--c); }
+        .name { width: 100%; font: 700 20px var(--mono); color: var(--c); text-transform: uppercase; padding: 4px 0;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .count { flex: 1; display: flex; align-items: center; justify-content: center; font: 700 clamp(120px, 38vw, 220px)/1 var(--mono); color: var(--c); }
         .btns { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
         button { font: inherit; color: inherit; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
@@ -60,7 +59,7 @@
             <div class="status" id="status">—</div>
         </div>
         <section class="team" id="team">
-            <input class="name" id="name" type="text" maxlength="14" spellcheck="false" autocomplete="off" placeholder="Название команды">
+            <div class="name" id="name" title="Название задаёт главный судья"></div>
             <div class="count" id="count">0</div>
             <div class="btns">
                 <button id="bDown">−1</button>

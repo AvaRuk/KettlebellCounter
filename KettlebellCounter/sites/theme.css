@@ -15,6 +15,20 @@
     color-scheme: dark;
 }
 
+/* ---- Amoled: pure black, lime accent, no gradients ---- */
+:root[data-theme="amoled"] {
+    --bg: #000000; --panel: #070707; --panel-2: #0d0d0d; --line: #1d1d1d;
+    --text: #f3f3f3; --dim: #8c8c8c;
+    --brand: #c8ff00; --accent: #c8ff00; --accent-hi: #b4e800; --accent-soft: #d8ff66; --sky: #00d5ff;
+    --on-accent: #0a1000; --on-warn: #1a1200;
+    --head-1: #000000; --head-2: #000000; --head-3: #000000; --head-dim: #8c8c8c;
+    --input: #090909; --hover: #171717; --hover-line: #2c2c2c; --on: #1a2400; --warn-hover: #ffc04d;
+    --ring: rgba(200,255,0,.32); --link: #c8ff00; --err: #ff4d5e; --amber: #ffb020;
+    color-scheme: dark;
+}
+/* Amoled keeps the header to a single thin lime line */
+:root[data-theme="amoled"] header { border-bottom-width: 1px; }
+
 /* ---- Графит ---- */
 :root[data-theme="graphite"] {
     --bg: #15171c; --panel: #1e2128; --panel-2: #2a2e38; --line: #3a3f4c;

@@ -406,9 +406,9 @@ function handle(a, auth) {
             else team.displayColors[a.key] = a.value.toLowerCase();
             break;
 
-        // ----- Team: the name is also editable by its own judge -----
+        // ----- Team: the name is set by the admin only; the team judge sees it read-only -----
         case 'teamSetName':
-            if (!needTeam()) return false;
+            if (!admin || !needTeam()) return false;
             team.name = cleanName(a.name);
             break;
 

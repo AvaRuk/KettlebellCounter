@@ -21,6 +21,19 @@ document.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => send(
 document.querySelectorAll('[data-sec]').forEach((b) => (b.onclick = () => send({ type: 'globalSetDuration', sec: +b.dataset.sec })));
 document.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => send({ type: 'globalAdjustDuration', delta: +b.dataset.d })));
 
+// Manual time: minutes and seconds, 0:10 … 99:59 (the server clamps the same range)
+const setManual = () => {
+    const mm = Math.max(0, Math.min(99, Math.round(+$('mm').value || 0)));
+    const ss = Math.max(0, Math.min(59, Math.round(+$('ss').value || 0)));
+    send({ type: 'globalSetDuration', sec: Math.max(10, mm * 60 + ss) });
+    const el = document.activeElement;
+    if (el && el.blur) el.blur();
+};
+$('bSetTime').onclick = setManual;
+for (const id of ['mm', 'ss']) $(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); setManual(); }
+});
+
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }   // the theme picker: arrows / Space belong to it
     if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -73,10 +86,13 @@ function apply() {
     document.querySelectorAll('[data-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.mode === mode); b.disabled = !idle; });
     const canSet = idle && st.mode === 'down';
     document.querySelectorAll('[data-sec], [data-d]').forEach((b) => (b.disabled = !canSet));
+    $('mm').disabled = $('ss').disabled = $('bSetTime').disabled = !canSet;
+    if (document.activeElement !== $('mm')) $('mm').value = Math.floor(st.duration / 60);
+    if (document.activeElement !== $('ss')) $('ss').value = String(st.duration % 60);
     $('setupHint').textContent = !idle ? 'Время и режим меняются только при сброшенном таймере.'
         : mode === 'up' ? 'В режиме секундомера время не задаётся.'
-        : mode === 'relay' ? `Эстафета: общее время ${KB.fmt(st.duration)}, участников в команде — ${rl.legs} (задаёт администратор). Клавиши: ← → ±1 мин, Shift+← → ±10 с.`
-        : 'Установлено: ' + KB.fmt(st.duration) + '. Клавиши: ← → ±1 мин, Shift+← → ±10 с.';
+        : mode === 'relay' ? `Эстафета: общее время ${KB.fmt(st.duration)}, участников в команде — ${rl.legs} (задаёт администратор). Время можно изменить вручную или клавишами ← →.`
+        : 'Установлено: ' + KB.fmt(st.duration) + '. Введите время вручную (0:10–99:59) или используйте ← → (Shift — ±10 с).';
 
     const root = document.documentElement.style;
     root.setProperty('--timer', st.colors.timer);

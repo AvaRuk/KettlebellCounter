@@ -19,9 +19,7 @@ $('bDown').onclick = () => { buzz(); send({ type: 'localCountDown' }); };
 window.onVolume = (dir) => send({ type: dir === 'up' ? 'localCountUp' : 'localCountDown' }); // For integration mobile app
 $('bReset').onclick = () => { if (confirm('Обнулить счёт команды?')) send({ type: 'localResetCounts' }); };
 $('bExit').onclick = exit;
-// The name goes to the display immediately as you type; when done, the field shows the cleaned-up version
-$('name').oninput = () => send({ type: 'teamSetName', name: $('name').value });
-$('name').onblur = () => apply();
+// The team name is set by the head judge in the admin panel; here it is read-only
 
 document.addEventListener('keydown', (e) => {
     // Fields and the theme picker keep their own keys (otherwise the arrows / Space would change the score)
@@ -50,7 +48,7 @@ function apply() {
     root.setProperty('--alarm', st.colors.alarm);
 
     $('count').textContent = team.reps;
-    if (document.activeElement !== $('name')) $('name').value = team.name;
+    $('name').textContent = team.name || `КОМАНДА ${idx + 1}`;
     $('bReset').disabled = st.running;
     const paused = !st.running && !st.finished && st.elapsed > 0;
     const leg = st.relay && st.relay.on && !st.finished && (st.running || paused) ? ` · этап ${KB.relayLeg(st) + 1} из ${st.relay.legs}` : '';

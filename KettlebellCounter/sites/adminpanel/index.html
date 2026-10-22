@@ -1,294 +1,707 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="amoled">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self'">
     <title>ТГАСУ — гиревой спорт: пульт управления</title>
     <link rel="stylesheet" href="/theme.css">
     <script src="/theme.js"></script>
     <style>
-        /* Interface colors (backgrounds, text, accents) come from the site theme — see /theme.css.
-           The values below follow the scoreboard colors set in this panel and are filled in by index.js */
+        /* ==========================================================================
+           Гиревой спорт — пульт главного судьи.
+           Interface colors come from the site theme (see /theme.css); the theme is
+           picked in the header and remembered on the device (see /theme.js).
+           --timer / --frame / --alarm are filled in from the scoreboard settings.
+           ========================================================================== */
+
         :root {
             --alarm: #ff3b30;
             --timer: #ffffff;
             --frame: #1f5fff;
-            --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+            --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, Consolas, "SF Mono", monospace;
+            --ok: #2fd07a;
+            --r-md: 12px;
+
+            /* Short names used by the panel, mapped onto the shared site theme */
+            --surface: var(--panel);
+            --surface-2: var(--panel-2);
+            --surface-3: var(--hover);
+            --line-2: var(--hover-line);
+            --muted: var(--dim);
+            --input-bg: var(--input);
+            --accent-2: var(--accent-hi);
+            --accent-ink: var(--on-accent);
+            --danger: var(--err);
+            --pause: var(--sky);
+            --focus: 0 0 0 2px var(--ring);
+            --btn-hover: var(--hover);
+            --header-bg: linear-gradient(100deg, var(--head-1) 0%, var(--head-2) 70%, var(--head-3) 100%);
+            --header-text: #ffffff;
+            --header-dim: var(--head-dim);
+            --header-line: var(--accent);
+            --header-border: 4px;
+            --pill-bg: rgba(0, 0, 0, .22);
+            --pill-line: rgba(255, 255, 255, .22);
+            --seg-bg: var(--input);
+            --seg-line: var(--line);
+            --shadow: none;
         }
 
-        * {
+        html[data-theme="amoled"] {
+            --header-border: 1px;
+        }
+
+        /* ---------- Base ---------- */
+        *,
+        *::before,
+        *::after {
             box-sizing: border-box;
         }
 
-        html, body {
-            margin: 0;
+        html {
             min-height: 100%;
             background: var(--bg);
-            color: var(--text);
-            font: 15px/1.4 "Segoe UI", system-ui, sans-serif;
         }
 
         body {
-            display: flex;
-            flex-direction: column;
+            margin: 0;
             min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font: 15px/1.45 "Segoe UI", system-ui, -apple-system, "Roboto", sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        h1, h2, h3, h4, p, dl, dd {
+            margin: 0;
+        }
+
+        a {
+            color: var(--link);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        img {
+            display: block;
+        }
+
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--line-2);
+            border: 2px solid var(--bg);
+            border-radius: 99px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        :focus-visible {
+            outline: none;
+            box-shadow: var(--focus);
+        }
+
+        .hidden {
+            display: none !important;
         }
 
         .noselect {
             user-select: none;
         }
 
-        /* Header */
-        header {
+        /* ---------- Header ---------- */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 30;
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 12px 20px;
-            background: linear-gradient(100deg, var(--head-1) 0%, var(--head-2) 70%, var(--head-3) 100%);
-            border-bottom: 4px solid var(--accent);
-        }
-
-        #logo {
-            height: 40px;
-            width: auto;
-            display: block;
+            gap: 16px;
+            min-height: 62px;
+            padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            background: var(--header-bg);
+            border-bottom: var(--header-border) solid var(--header-line);
+            color: var(--header-text);
         }
 
         .brand {
             display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            color: var(--header-text);
+            text-decoration: none;
+        }
+
+        .brand:hover {
+            text-decoration: none;
+        }
+
+        #logo {
+            height: 38px;
+            width: auto;
+            flex: none;
+        }
+
+        .brand-text {
+            display: flex;
             flex-direction: column;
+            min-width: 0;
             line-height: 1.15;
         }
 
-            .brand b {
-                font-size: 24px;
-                letter-spacing: .14em;
-                font-weight: 800;
-            }
-
-                .brand b::after {
-                    content: '';
-                    display: inline-block;
-                    width: 8px;
-                    height: 8px;
-                    margin-left: 8px;
-                    border-radius: 50%;
-                    background: var(--accent);
-                    vertical-align: middle;
-                }
-
-            .brand span {
-                font-size: 12px;
-                color: var(--head-dim);
-            }
-
-        header .title {
-            margin-left: auto;
-            text-align: right;
-            line-height: 1.2;
+        .brand-text b {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .16em;
         }
 
-            header .title b {
-                font-size: 17px;
-                color: #fff;
-                font-weight: 700;
-                display: block;
-            }
+        .brand-text b::after {
+            content: '';
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            margin-left: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            vertical-align: 2px;
+        }
 
-            header .title span {
-                font-size: 12px;
-                color: var(--head-dim);
-            }
+        .brand-text span {
+            overflow: hidden;
+            color: var(--header-dim);
+            font-size: 11.5px;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .topbar-right {
+            display: flex;
+            flex: 1;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-left: auto;
+        }
 
         .conn {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            padding: 7px 12px;
+            color: var(--header-dim);
+            font-size: 12px;
+            white-space: nowrap;
+            background: var(--pill-bg);
+            border: 1px solid var(--pill-line);
+            border-radius: 999px;
         }
 
-            .conn::before {
-                content: '';
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background: #2fd07a;
-            }
+        .conn::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            flex: none;
+            background: var(--ok);
+            border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(47, 208, 122, .12);
+        }
 
-            .conn.off::before {
-                background: #ff4d4d;
-            }
+        .conn.off::before {
+            background: var(--danger);
+            box-shadow: none;
+        }
 
-        main {
-            flex: 1;
+        /* ---------- Segmented controls ---------- */
+        .seg {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            padding: 3px;
+            background: var(--seg-bg);
+            border: 1px solid var(--seg-line);
+            border-radius: 999px;
+            justify-content: center;
+        }
+
+        .seg button {
+            padding: 6px 12px;
+            color: var(--dim);
+            font: 600 12px "Segoe UI", system-ui, sans-serif;
+            white-space: nowrap;
+            background: transparent;
+            border: 0;
+            border-radius: 999px;
+            cursor: pointer;
+        }
+
+        .seg button:hover:not(:disabled) {
+            color: var(--text);
+        }
+
+        .seg button.on {
+            color: var(--accent-ink);
+            background: var(--accent);
+        }
+
+        .seg button:disabled {
+            opacity: .4;
+            cursor: default;
+        }
+
+        .seg-mode {
+            border-radius: var(--r-md);
+        }
+
+        .seg-mode button {
+            padding: 8px 14px;
+            font-size: 13px;
+            border-radius: 9px;
+        }
+
+        /* ---------- Layout ---------- */
+        .layout {
             display: grid;
-            grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+            grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
             gap: 16px;
-            padding: 16px 20px 20px;
+            width: 100%;
+            max-width: 1720px;
+            margin: 0 auto;
+            padding: 16px max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         }
 
-        .col {
+        .main-col,
+        .side-col {
             display: flex;
             flex-direction: column;
             gap: 16px;
             min-width: 0;
         }
 
-        section {
-            background: var(--panel);
+        /* ---------- Cards ---------- */
+        .card {
+            padding: 16px 18px;
+            background: var(--surface);
             border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 16px;
+            border-radius: 16px;
+            box-shadow: var(--shadow);
         }
 
-        h2 {
-            margin: 0 0 10px;
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--dim);
-            text-transform: uppercase;
-            letter-spacing: .08em;
-        }
-
-        .row {
+        .card-head {
             display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
             align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
-        button, select, input {
+        .card-head h2 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--dim);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+        }
+
+        .card-head h2::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            flex: none;
+            background: var(--accent);
+            border-radius: 1px;
+        }
+
+        .badge {
+            padding: 4px 9px;
+            color: var(--dim);
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+        }
+
+        /* ---------- Buttons ---------- */
+        button,
+        input,
+        select {
             font: inherit;
             color: inherit;
         }
 
-        button {
-            background: var(--panel-2);
-            border: 1px solid var(--line);
-            border-radius: 9px;
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 40px;
             padding: 9px 14px;
+            color: var(--text);
+            font: 600 14px "Segoe UI", system-ui, sans-serif;
+            text-decoration: none;
+            white-space: nowrap;
+            background: var(--surface-2);
+            border: 1px solid var(--line-2);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s, transform .06s;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--btn-hover);
+            text-decoration: none;
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            opacity: .35;
+            cursor: default;
+        }
+
+        .btn-primary {
+            color: var(--accent-ink);
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-2);
+            border-color: var(--accent-2);
+        }
+
+        .btn-warn {
+            color: var(--on-warn);
+            background: var(--pause);
+            border-color: var(--pause);
+        }
+
+        .btn-warn:hover:not(:disabled) {
+            filter: brightness(1.08);
+            background: var(--pause);
+            border-color: var(--pause);
+        }
+
+        .btn-ghost {
+            color: var(--dim);
+            background: transparent;
+        }
+
+        .btn-danger-ghost {
+            color: var(--danger);
+            background: transparent;
+            border-color: var(--danger);
+        }
+
+        .btn-danger-ghost:hover:not(:disabled) {
+            color: #fff;
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .btn-danger {
+            color: #fff;
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            filter: brightness(1.1);
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .btn-xl {
+            min-height: 58px;
+            padding: 14px 28px;
+            font-size: 19px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            border-radius: 14px;
+        }
+
+        .btn-sm {
+            min-height: 32px;
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+
+        .icon-btn {
+            display: grid;
+            place-items: center;
+            width: 32px;
+            height: 32px;
+            min-height: 32px;
+            padding: 0;
+            color: var(--muted);
+            font-size: 15px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 8px;
             cursor: pointer;
         }
 
-            button:hover:not(:disabled) {
-                background: var(--hover);
-                border-color: var(--hover-line);
-            }
-
-            button:disabled, input:disabled, select:disabled {
-                opacity: .4;
-                cursor: default;
-            }
-
-            button.go {
-                background: var(--accent);
-                border-color: var(--accent);
-                color: var(--on-accent);
-                font-weight: 700;
-            }
-
-                button.go:hover:not(:disabled) {
-                    background: var(--accent-hi);
-                    border-color: var(--accent-hi);
-                }
-
-            button.warn {
-                background: var(--sky);
-                border-color: var(--sky);
-                color: var(--on-warn);
-                font-weight: 700;
-            }
-
-                button.warn:hover:not(:disabled) {
-                    background: var(--warn-hover);
-                    border-color: var(--warn-hover);
-                }
-
-        .team button.go {
-            background: var(--c);
-            border-color: var(--c);
-            color: var(--c-ink, #fff);
+        .icon-btn:hover:not(:disabled) {
+            color: #fff;
+            background: var(--danger);
+            border-color: var(--danger);
         }
 
-            .team button.go:hover:not(:disabled) {
-                filter: brightness(1.15);
-                background: var(--c);
-                border-color: var(--c);
-            }
-
-        button.on {
-            background: var(--on);
-            border-color: var(--sky);
-            box-shadow: inset 0 0 0 1px var(--sky);
-        }
-
-        input[type=number], input[type=text], select {
-            background: var(--input);
-            border: 1px solid var(--line);
+        /* ---------- Inputs ---------- */
+        input[type="number"],
+        input[type="text"],
+        input[type="password"],
+        select {
+            min-width: 0;
+            padding: 9px 11px;
+            color: var(--text);
+            background: var(--input-bg);
+            border: 1px solid var(--line-2);
             border-radius: 9px;
-            padding: 8px 10px;
         }
 
-            input:focus, select:focus {
-                outline: none;
-                border-color: var(--brand);
-                box-shadow: 0 0 0 2px var(--ring);
-            }
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: var(--focus);
+        }
 
-            input[type=number]::-webkit-inner-spin-button {
-                display: none;
-            }
-
-        input[type=number] {
+        input[type="number"] {
             -moz-appearance: textfield;
         }
 
-        /* Timer */
-        .timer {
-            border-top: 4px solid var(--frame);
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            margin: 0;
+            -webkit-appearance: none;
+        }
+
+        input[type="color"] {
+            width: 42px;
+            height: 26px;
+            flex: none;
+            padding: 0;
+            background: none;
+            border: 1px solid var(--line-2);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 2px;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 0;
+            border-radius: 4px;
+        }
+
+        input[type="checkbox"] {
+            width: 17px;
+            height: 17px;
+            flex: none;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .check {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            color: var(--text);
+            font-size: 13.5px;
+            cursor: pointer;
+        }
+
+        .label {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+
+        .select-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+
+        .select-field select {
+            width: 100%;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        .hint {
+            margin-top: 8px;
+            color: var(--dim);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .hint b {
+            color: var(--text);
+        }
+
+        /* ---------- Timer ---------- */
+        .timer-card {
+            position: relative;
+            overflow: hidden;
+            border-top: 2px solid var(--accent);
+        }
+
+        .timer-main {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
         }
 
         .readout {
-            font: 700 96px/1 var(--mono);
-            letter-spacing: 2px;
             color: var(--timer);
-            margin-bottom: 4px;
+            font: 800 clamp(58px, 8.5vw, 104px)/.95 var(--mono);
             font-variant-numeric: tabular-nums;
+            letter-spacing: .01em;
+            text-shadow: 0 0 28px rgba(255, 255, 255, .10);
         }
 
-            .readout.alarm {
-                color: var(--alarm);
-            }
+        .readout.alarm {
+            color: var(--alarm);
+            text-shadow: 0 0 28px rgba(255, 59, 48, .22);
+        }
 
-        .status {
-            color: var(--dim);
-            margin: 0 0 14px;
-            min-height: 1.4em;
+        .timer-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
         }
 
         #bToggle {
             min-width: 160px;
-            font-size: 18px;
-            padding: 12px 18px;
         }
 
-        .setup {
-            margin-top: 16px;
-            padding-top: 14px;
-            border-top: 1px solid var(--line);
+        #bReset {
+            min-width: 140px;
         }
 
-            .setup label {
-                color: var(--dim);
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            }
+        .status {
+            padding: 6px 12px;
+            color: var(--dim);
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            background: var(--surface-2);
+            border: 1px solid var(--line-2);
+            border-radius: 999px;
+        }
 
-            .setup input {
-                width: 64px;
-                text-align: center;
-            }
+        .status[data-state="running"] {
+            color: var(--ok);
+            background: var(--surface-2);
+            border-color: var(--ok);
+        }
+
+        .status[data-state="paused"] {
+            color: var(--pause);
+            background: var(--surface-2);
+            border-color: var(--pause);
+        }
+
+        .status[data-state="finished"] {
+            color: var(--danger);
+            background: var(--surface-2);
+            border-color: var(--danger);
+        }
+
+        .progress {
+            height: 3px;
+            margin: 14px 0 18px;
+            overflow: hidden;
+            background: var(--surface-3);
+            border-radius: 999px;
+        }
+
+        .progress span {
+            display: block;
+            width: 0;
+            height: 100%;
+            background: var(--accent);
+            transition: width .12s linear;
+        }
+
+        .progress.alarm span {
+            background: var(--alarm);
+        }
+
+        .timer-settings {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px 20px;
+            align-items: end;
+        }
+
+        .timer-settings .setting:first-child {
+            grid-column: 1 / -1;
+        }
+
+        .setting {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .time-inputs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .time-inputs input {
+            width: 74px;
+            padding: 8px 6px;
+            font: 700 24px var(--mono);
+            text-align: center;
+        }
+
+        .colon {
+            color: var(--muted);
+            font: 700 22px var(--mono);
+        }
 
         .chips {
             display: flex;
@@ -296,429 +709,1000 @@
             gap: 6px;
         }
 
-            .chips button {
-                padding: 6px 11px;
-                font-family: var(--mono);
-                font-size: 13px;
-            }
-
-        #modes button {
-            font-family: inherit;
-            font-size: 14px;
+        .chips button {
+            padding: 7px 12px;
+            color: var(--dim);
+            font: 600 13px var(--mono);
+            background: var(--surface-2);
+            border: 1px solid var(--line-2);
+            border-radius: 999px;
+            cursor: pointer;
         }
 
-        /* Teams */
+        .chips button:hover:not(:disabled) {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .chips button:disabled {
+            opacity: .35;
+            cursor: default;
+        }
+
+        .relay {
+            margin-top: 18px;
+            padding: 14px 16px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+
+        .relay-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .relay-options {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 18px;
+            margin-top: 10px;
+        }
+
+        .inline-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--dim);
+            font-size: 13px;
+        }
+
+        .inline-field input {
+            width: 64px;
+            text-align: center;
+        }
+
+        .inline-field select {
+            padding: 6px 9px;
+            font-size: 13px;
+        }
+
+        .relay .hint {
+            flex-basis: 100%;
+            margin: 10px 0 0;
+        }
+
+        /* ---------- Teams ---------- */
+        .teams-block {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 4px 2px 12px;
+        }
+
+        .section-head h2 {
+            color: var(--dim);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+        }
+
         .teams {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+            gap: 14px;
         }
 
         .team {
-            background: var(--panel);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+            padding: 15px;
+            background: var(--surface);
             border: 1px solid var(--line);
-            border-top: 6px solid var(--c);
-            border-radius: 12px;
-            padding: 14px 16px 16px;
+            border-top: 3px solid var(--c);
+            border-radius: 16px;
         }
 
         .team-head {
             display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .team-title {
+            min-width: 0;
+        }
+
+        .team h3 {
+            color: var(--dim);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+
+        .team .where {
+            margin-top: 2px;
+            color: var(--muted);
+            font-size: 11.5px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .name {
+            width: 100%;
+            padding: 4px 0;
+            color: var(--c);
+            font: 700 17px var(--mono);
+            letter-spacing: .03em;
+            text-transform: uppercase;
+            background: transparent;
+            border: 0;
+            border-bottom: 1px solid var(--line-2);
+            border-radius: 0;
+        }
+
+        .name:focus {
+            border-bottom-color: var(--c);
+            box-shadow: none;
+        }
+
+        .cut {
+            color: var(--amber);
+            font-size: 11.5px;
+        }
+
+        .count {
+            width: 100%;
+            height: 86px;
+            padding: 4px 0;
+            color: var(--c);
+            font: 800 62px/1 var(--mono);
+            font-variant-numeric: tabular-nums;
+            text-align: center;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+
+        .count:focus {
+            border-color: var(--c);
+            box-shadow: inset 0 0 0 1px var(--c);
+        }
+
+        /* The base input rule sets a text color; the team score must keep the team color */
+        .team .count {
+            color: var(--c);
+        }
+
+        .score-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1.7fr;
+            gap: 8px;
+        }
+
+        .score-buttons button {
+            height: 48px;
+            color: var(--text);
+            font: 700 20px var(--mono);
+            background: var(--surface-2);
+            border: 1px solid var(--line-2);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: filter .1s, transform .06s;
+        }
+
+        .score-buttons button:active {
+            transform: translateY(1px);
+        }
+
+        .score-buttons button:hover {
+            filter: brightness(1.14);
+        }
+
+        .score-buttons .up {
+            color: var(--c-ink, #fff);
+            background: var(--c);
+            border-color: var(--c);
+        }
+
+        .team-meta {
+            display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 8px;
         }
 
-        .team h2 {
-            margin: 0;
-            color: var(--text);
-            font-size: 15px;
-            text-transform: none;
-            letter-spacing: 0;
-        }
-
-        .team .where {
-            margin: 0 0 6px;
-            color: var(--dim);
-            font-size: 13px;
-        }
-
-        .team .rm {
-            width: 30px;
-            height: 30px;
-            padding: 0;
-            font-size: 14px;
-            line-height: 1;
-            color: var(--dim);
-            background: transparent;
-        }
-
-            .team .rm:hover:not(:disabled) {
-                color: #fff;
-                background: var(--alarm);
-                border-color: var(--alarm);
-            }
-
-        .count {
-            width: 100%;
-            background: transparent;
-            border: 0;
-            border-bottom: 1px solid var(--line);
-            border-radius: 0;
-            font: 700 84px/1.1 var(--mono);
-            text-align: center;
-            color: var(--c);
-            padding: 0;
-        }
-
-            .count:focus {
-                outline: none;
-                box-shadow: none;
-                border-bottom-color: var(--c);
-            }
-
-        .team .row {
-            margin-top: 12px;
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-        }
-
-            .team .row button {
-                font-size: 22px;
-                padding: 12px 0;
-            }
-
         .team .keys {
-            margin: 10px 0 0;
-            color: var(--dim);
-            font-size: 13px;
+            color: var(--muted);
+            font-size: 11px;
         }
 
-        .name {
-            width: 100%;
-            margin: 2px 0 6px;
-            font: 700 17px var(--mono);
-            color: var(--c);
+        .team-pin {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 11px;
+            letter-spacing: .08em;
             text-transform: uppercase;
         }
 
-            .name:focus {
-                border-color: var(--c);
-                box-shadow: none;
-            }
-
-        .cut {
-            margin: 0 0 6px;
-            color: var(--amber);
-            font-size: 12px;
+        .pinbox {
+            padding: 2px 7px;
+            color: var(--accent);
+            font: 700 13px var(--mono);
+            letter-spacing: .08em;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            user-select: all;
         }
 
-        /* Scoreboard */
-        .meta {
+        .team-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .team-actions .btn {
+            flex: 1 1 auto;
+        }
+
+        .team-style {
+            padding-top: 8px;
+            border-top: 1px solid var(--line);
+        }
+
+        summary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
             color: var(--dim);
-            margin: 0 0 4px;
-            font-size: 13px;
-        }
-
-        .displays {
-            margin: 0 0 12px;
-            padding: 0;
+            font-size: 12px;
             list-style: none;
-            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
         }
 
-            .displays li::before {
-                content: '●';
-                color: #2fd07a;
-                margin-right: 8px;
-            }
-
-            .displays li.none::before {
-                color: #ff4d4d;
-            }
-
-        .block {
-            margin-top: 14px;
+        summary::-webkit-details-marker {
+            display: none;
         }
 
-            .block > p {
-                margin: 0 0 6px;
-                color: var(--dim);
-                font-size: 13px;
-            }
-
-        select {
-            width: 100%;
+        summary::before {
+            content: '▸';
+            color: var(--muted);
+            transition: transform .15s;
         }
 
-        .hint {
+        details[open] > summary::before {
+            transform: rotate(90deg);
+        }
+
+        .style-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 10px;
+            margin-top: 10px;
+        }
+
+        .style-grid label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             color: var(--dim);
-            font-size: 12px;
-            margin: 6px 0 0;
+            font-size: 11.5px;
+        }
+
+        .style-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .style-actions .btn {
+            flex: 1 1 auto;
+        }
+
+        /* ---------- Scoreboard / side column ---------- */
+        .displays {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin: 0 0 10px;
+            padding: 0;
+            font-size: 13px;
+            list-style: none;
+        }
+
+        .displays li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .displays li::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            flex: none;
+            background: var(--ok);
+            border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(47, 208, 122, .12);
+        }
+
+        .displays li.none {
+            color: var(--dim);
+        }
+
+        .displays li.none::before {
+            background: var(--danger);
+            box-shadow: none;
+        }
+
+        .urls {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 10px;
         }
 
         .url {
             display: flex;
-            gap: 8px;
             align-items: center;
-            margin-bottom: 6px;
+            gap: 6px;
         }
 
-            .url code {
-                flex: 1;
-                min-width: 0;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-                background: var(--input);
-                border: 1px solid var(--line);
-                border-radius: 9px;
-                padding: 8px 10px;
-                font: 14px var(--mono);
-                color: var(--accent-soft);
-                user-select: all;
-            }
+        .url code {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            padding: 7px 9px;
+            color: var(--link);
+            font: 12.5px var(--mono);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            background: var(--input-bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            user-select: all;
+        }
 
-            .url a {
-                color: var(--link);
-                font-size: 13px;
-            }
+        .url .btn {
+            flex: none;
+        }
+
+        .select-field + .colors,
+        .select-field + .positions {
+            margin-top: 12px;
+        }
 
         .colors {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px 14px;
+            gap: 8px 12px;
             margin-top: 10px;
         }
 
-            .colors label {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
-                color: var(--dim);
-                font-size: 13px;
-            }
-
-        input[type=color] {
-            width: 46px;
-            height: 30px;
-            padding: 0;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            background: none;
-            cursor: pointer;
-        }
-
-        .check {
+        .colors label {
             display: flex;
-            gap: 8px;
             align-items: center;
-            cursor: pointer;
-            color: var(--text);
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--dim);
+            font-size: 12px;
         }
 
-        input[type=checkbox] {
-            accent-color: var(--accent);
-            width: 16px;
-            height: 16px;
+        .positions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
         }
 
         .checks {
-            display: grid;
+            display: flex;
+            flex-direction: column;
             gap: 8px;
             margin-top: 12px;
         }
 
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        /* ---------- Link generator ---------- */
+        .gen-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        #gColors {
+            margin-top: 12px;
+        }
+
+        #gColors label {
+            padding: 6px 8px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        #gColors label span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .gen-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .gen-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+            padding: 10px 12px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+        }
+
+        .gen-col > .label {
+            color: var(--dim);
+        }
+
+        #gFlags,
+        #gPos {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        #gFlags label,
+        #gPos label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--dim);
+            font-size: 12px;
+        }
+
+        #gFlags select,
+        #gPos select {
+            flex: none;
+            padding: 5px 7px;
+            font-size: 12px;
+        }
+
+        .size-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            color: var(--dim);
+            font-size: 12px;
+        }
+
+        .size-row label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .size-row input {
+            width: 72px;
+            text-align: center;
+        }
+
+        #gUrl {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            padding: 7px 9px;
+            color: var(--link);
+            font: 12.5px var(--mono);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            background: var(--input-bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        #gPrev {
+            width: 100%;
+            margin-top: 12px;
+            aspect-ratio: 320 / 192;
+            background: #000;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+        }
+
+        .hint-box {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--line);
+        }
+
+        .hint-box .hint {
+            margin-top: 8px;
+        }
+
+        .hint-box code {
+            color: var(--accent);
+            font-family: var(--mono);
+        }
+
+        /* ---------- Access ---------- */
+        .pin-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+        }
+
+        .pin-row .label {
+            margin-right: auto;
+        }
+
+        .inline-form {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .inline-form input {
+            flex: 1;
+            min-width: 0;
+            font-family: var(--mono);
+        }
+
+        .note {
+            min-height: 1.3em;
+            margin-top: 8px;
+            color: var(--dim);
+            font-size: 12px;
+        }
+
+        .note.bad {
+            color: var(--danger);
+        }
+
+        #bExit {
+            margin-top: 12px;
+        }
+
+        /* ---------- Hotkeys ---------- */
         .keys-list {
             display: grid;
             grid-template-columns: auto 1fr;
-            gap: 4px 12px;
-            margin: 0;
+            gap: 7px 12px;
+            font-size: 12.5px;
+        }
+
+        .keys-list dt {
+            width: max-content;
+            padding: 3px 7px;
+            color: var(--accent);
+            font: 600 11px var(--mono);
+            white-space: nowrap;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+        }
+
+        .keys-list dd {
+            align-self: center;
+            color: var(--dim);
+        }
+
+        /* ---------- Dialog ---------- */
+        .dialog-backdrop {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, .74);
+        }
+
+        .dialog-backdrop[hidden] {
+            display: none;
+        }
+
+        .dialog {
+            width: min(430px, 100%);
+            padding: 22px;
+            background: var(--surface);
+            border: 1px solid var(--line-2);
+            border-radius: 20px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, .65);
+            animation: dialog-in .16s ease-out;
+        }
+
+        @keyframes dialog-in {
+            from {
+                opacity: 0;
+                transform: translateY(8px) scale(.985);
+            }
+        }
+
+        .dialog h3 {
+            margin-bottom: 8px;
+            font-size: 17px;
+            line-height: 1.3;
+        }
+
+        .dialog p {
+            margin-bottom: 20px;
+            color: var(--dim);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* ---------- Toast ---------- */
+        .toast {
+            position: fixed;
+            bottom: max(24px, env(safe-area-inset-bottom));
+            left: 50%;
+            z-index: 120;
+            padding: 10px 16px;
+            color: var(--accent-ink);
             font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+            pointer-events: none;
+            background: var(--accent);
+            border-radius: 999px;
+            opacity: 0;
+            transform: translate(-50%, 16px);
+            transition: opacity .18s, transform .18s;
         }
 
-            .keys-list dt {
-                font-family: var(--mono);
-                color: var(--accent-soft);
-            }
-
-            .keys-list dd {
-                margin: 0;
-                color: var(--dim);
-            }
-
-        .hidden {
-            display: none !important;
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
         }
 
-        @media (max-width: 860px) {
-            main {
+        /* ---------- Responsive ---------- */
+        @media (max-width: 1180px) {
+            .layout {
                 grid-template-columns: 1fr;
             }
+        }
 
-            .readout {
-                font-size: 72px;
+        @media (max-width: 720px) {
+            .topbar {
+                flex-wrap: wrap;
+                gap: 10px;
             }
 
-            header .title {
+            .brand-text span {
                 display: none;
             }
 
-            header select.themepick {
-                margin-left: auto;
+            .topbar-right {
+                flex: 1 1 100%;
+                justify-content: space-between;
+            }
+
+            .timer-main {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .timer-actions,
+            .timer-actions .btn {
+                width: 100%;
+            }
+
+            .readout {
+                font-size: clamp(56px, 16vw, 84px);
+            }
+
+            .teams,
+            .style-grid,
+            .colors,
+            .positions,
+            .gen-grid,
+            .gen-options,
+            .timer-settings {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 14px;
             }
         }
 
-        .pinbox { font: 700 15px var(--mono); color: var(--accent-soft); background: var(--input); border: 1px solid var(--line);
-            border-radius: 6px; padding: 2px 8px; user-select: all; }
-        .team .pins { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
-        .team .pins button { padding: 3px 9px; font-size: 12px; margin-left: auto; }
-        .team .row .reset { grid-column: 1 / -1; font-size: 13px; padding: 6px 0; }
-        .team .pins a { color: var(--link); font-size: 13px; }
-        .team .pins.tbl button { margin-left: auto; }
-        .tcolors { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0 0; color: var(--dim); font-size: 13px; }
-        .tcolors label { display: flex; align-items: center; gap: 6px; }
-        .tcolors button { padding: 3px 9px; font-size: 12px; margin-left: auto; }
-        .timerbox { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--dim); font-size: 13px; }
-        .timerbox button { padding: 3px 9px; font-size: 12px; margin-left: auto; }
-        .adminbox { display: flex; gap: 8px; align-items: center; }
-        .adminbox input { flex: 1; min-width: 0; font-family: var(--mono); }
-        .note { margin: 8px 0 0; font-size: 13px; min-height: 1.3em; color: var(--dim); }
-        .note.bad { color: var(--err); }
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                transition: none !important;
+                animation: none !important;
+            }
+        }
     </style>
 </head>
 <body>
-    <header>
-        <img id="logo" src="logo.png" alt="">
-        <div class="brand"><b>ТГАСУ</b><span>Томский государственный архитектурно-строительный университет</span></div>
-        <div class="title"><b>Гиревой спорт</b><span class="conn off" id="conn">пульт управления табло</span></div>
-        <select class="themepick" id="themeSel" title="Тема сайта" aria-label="Тема сайта"></select>
+    <header class="topbar">
+        <a class="brand" href="/adminpanel" aria-label="Пульт управления табло">
+            <img id="logo" src="logo.png" alt="">
+            <span class="brand-text">
+                <b>ТГАСУ</b>
+                <span>Гиревой спорт · пульт управления</span>
+            </span>
+        </a>
+        <div class="topbar-right">
+            <span class="conn off" id="conn">нет связи…</span>
+            <select class="themepick" id="themeSel" title="Тема сайта" aria-label="Тема сайта"></select>
+        </div>
     </header>
 
-    <main>
-        <div class="col">
-            <section class="timer noselect">
-                <div class="readout" id="read">10:00</div>
-                <p class="status" id="status">Готов</p>
-                <div class="row">
-                    <button id="bToggle" class="go">Старт</button>
-                    <button id="bReset">Сбросить таймер</button>
+    <main class="layout">
+        <div class="main-col">
+            <section class="card timer-card noselect" aria-labelledby="timerTitle">
+                <div class="card-head">
+                    <h2 id="timerTitle">Таймер</h2>
+                    <span class="status" id="status" data-state="idle">Готов</span>
                 </div>
-                <div class="row setup">
-                    <div class="chips" id="modes">
-                        <button data-mode="down">Обратный отсчёт</button>
-                        <button data-mode="up">Секундомер</button>
-                        <button data-mode="relay">Эстафета</button>
-                    </div>
-                    <label>Время <input id="mm" type="number" min="0" max="99"> : <input id="ss" type="number" min="0" max="59"></label>
-                    <div class="chips" id="presets">
-                        <button data-sec="600">10:00</button><button data-sec="300">5:00</button>
-                        <button data-sec="180">3:00</button><button data-sec="60">1:00</button>
+
+                <div class="timer-main">
+                    <div class="readout" id="read">10:00</div>
+                    <div class="timer-actions">
+                        <button type="button" id="bToggle" class="btn btn-primary btn-xl">Старт</button>
+                        <button type="button" id="bReset" class="btn">Сбросить таймер</button>
                     </div>
                 </div>
-                <div class="row setup hidden" id="relayBox">
-                    <label>Участников в команде <input id="rLegs" type="number" min="2" max="6" value="3" style="width:60px"></label>
-                    <label>Счёт следующего участника
-                        <select id="rCarry"><option value="0">с нуля</option><option value="1">с текущего количества</option></select>
-                    </label>
-                    <p class="hint" id="rInfo" style="flex-basis:100%;margin:0"></p>
+
+                <div class="progress" id="progressBar" aria-hidden="true"><span id="progress"></span></div>
+
+                <div class="timer-settings">
+                    <div class="setting">
+                        <span class="label">Режим</span>
+                        <div class="seg seg-mode" id="modes">
+                            <button type="button" data-mode="down">Обратный отсчёт</button>
+                            <button type="button" data-mode="up">Секундомер</button>
+                            <button type="button" data-mode="relay">Эстафета</button>
+                        </div>
+                    </div>
+                    <div class="setting">
+                        <span class="label">Время</span>
+                        <div class="time-inputs">
+                            <input id="mm" type="number" min="0" max="99" inputmode="numeric" aria-label="Минуты">
+                            <span class="colon">:</span>
+                            <input id="ss" type="number" min="0" max="59" inputmode="numeric" aria-label="Секунды">
+                        </div>
+                    </div>
+                    <div class="setting">
+                        <span class="label">Быстрый выбор</span>
+                        <div class="chips" id="presets">
+                            <button type="button" data-sec="600">10:00</button>
+                            <button type="button" data-sec="300">5:00</button>
+                            <button type="button" data-sec="180">3:00</button>
+                            <button type="button" data-sec="60">1:00</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relay hidden" id="relayBox">
+                    <div class="relay-head">
+                        <span class="label">Параметры эстафеты</span>
+                    </div>
+                    <div class="relay-options">
+                        <label class="inline-field">Участников <input id="rLegs" type="number" min="2" max="6" value="3"></label>
+                        <label class="inline-field">Счёт следующего
+                            <select id="rCarry">
+                                <option value="0">с нуля</option>
+                                <option value="1">с текущего количества</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p class="hint" id="rInfo"></p>
                 </div>
             </section>
 
-            <!-- Team cards are created in index.js -->
-            <div class="teams" id="teams"></div>
-
-            <div class="row">
-                <button id="bAddTeam" class="go">+ Добавить команду</button>
-                <button id="bResetCounts">Обнулить все счётчики</button>
-            </div>
+            <section class="teams-block" aria-labelledby="teamsTitle">
+                <div class="section-head">
+                    <h2 id="teamsTitle">Команды</h2>
+                    <span class="badge" id="teamCount">0 из 8</span>
+                </div>
+                <div class="teams" id="teams"></div>
+                <div class="toolbar">
+                    <button type="button" id="bAddTeam" class="btn btn-primary">+ Добавить команду</button>
+                    <button type="button" id="bResetCounts" class="btn btn-danger-ghost">Обнулить все счётчики</button>
+                </div>
+            </section>
         </div>
 
-        <div class="col">
-            <section>
-                <h2>Табло</h2>
+        <aside class="side-col">
+            <section class="card">
+                <div class="card-head">
+                    <h2>Табло</h2>
+                    <span class="badge" id="displayCount">нет</span>
+                </div>
                 <ul class="displays" id="displays"></ul>
-
-                <div class="block">
-                    <p>Общее табло (все команды) — откройте в браузере на компьютере у панели. Табло отдельной команды — ссылка в её карточке</p>
-                    <div id="urls"></div>
-                    <p class="hint">На том компьютере нажмите <b>F</b> или дважды щёлкните по экрану — табло развернётся на весь экран.</p>
-                </div>
-
-                <div class="block">
-                    <p>Цвета общего табло</p>
-                    <div class="colors">
-                        <label>Рамка <input type="color" id="col-frame"></label>
-                        <label>Линии между командами <input type="color" id="col-line"></label>
-                        <label>Таймер <input type="color" id="col-timer"></label>
-                        <label>Тревога <input type="color" id="col-alarm"></label>
-                    </div>
-                    <div class="checks">
-                        <label class="check"><input type="checkbox" id="showNames"> Показывать названия команд на табло</label>
-                        <label class="check"><input type="checkbox" id="showLeader"> На табло отдельной команды (?team=) показывать счёт лидера</label>
-                        <label class="check"><input type="checkbox" id="showFrame"> Рамка вокруг табло</label>
-                        <label class="check"><input type="checkbox" id="rounded"> Скруглённые цифры и рамка</label>
-                    </div>
-                    <div class="row">
-                        <label>Счёт предыдущих участников эстафеты <select id="legsPos">
-                            <option value="top">сверху</option><option value="bottom">снизу</option>
-                            <option value="left">слева</option><option value="right">справа</option></select> от основного счётчика</label>
-                        <label>Счёт лидера <select id="leaderPos">
-                            <option value="top">сверху</option><option value="bottom">снизу</option>
-                            <option value="left">слева</option><option value="right">справа</option></select> от основного счётчика</label>
-                    </div>
-                    <p class="hint">У каждой команды свой цвет. Цвета названия, счёта, огранки (цветная рамка вокруг ячейки команды на общем табло) и всего табло отдельной команды (адрес с ?team=) настраиваются в её карточке. Тревога — цвет таймера в последние 10 секунд; по окончании времени рамка тоже становится этого цвета. На очень маленьких панелях скругление лучше отключить.</p>
-                </div>
+                <p class="hint">Общее табло откройте в браузере на компьютере у панели. Табло отдельной команды — ссылка в её карточке.</p>
+                <div id="urls"></div>
+                <p class="hint">На компьютере у панели нажмите <b>F</b> или дважды щёлкните по экрану — табло развернётся на весь экран.</p>
             </section>
 
-            <section>
-                <h2>Генератор ссылок для табло</h2>
-                <div class="block" style="margin-top:0">
-                    <p>Настройки из ссылки действуют только на то табло, где она открыта, и перекрывают общие настройки. Отмеченное галочкой попадает в адрес, остальное берётся из настроек сервера.</p>
-                    <div class="row">
-                        <label>Табло <select id="gTeam"></select></label>
-                        <label>Адрес сервера (IP) <select id="gHost" title="С каким адресом собирать ссылки на табло"></select></label>
-                    </div>
-                    <div class="colors" id="gColors"></div>
-                    <div class="row" id="gFlags"></div>
-                    <div class="row">
-                        <label>Размер панели, пикселей <input type="number" id="gW" value="320" min="16" max="16384" style="width:80px"> × <input type="number" id="gH" value="192" min="16" max="16384" style="width:80px"></label>
-                    </div>
-                    <div class="url"><code id="gUrl"></code><button id="gCopy">Копировать</button><a id="gOpen" target="_blank">Открыть</a></div>
-                    <iframe id="gPrev" title="Предпросмотр табло" style="width:100%;border:1px solid var(--line);border-radius:9px;background:#000;margin-top:10px;aspect-ratio:320/192"></iframe>
-                    <p class="hint">Параметры адреса: <code>team</code> (номер команды), цвета <code>timer frame line alarm nameColor countColor edge</code> (hex без #, например <code>timer=ffffff</code>), переключатели <code>names leader frame round</code> (0 или 1), положение счёта участников эстафеты и лидера <code>legsPos leaderPos</code> (<code>top bottom left right</code>).</p>
+            <section class="card">
+                <div class="card-head">
+                    <h2>Оформление табло</h2>
                 </div>
+                <div class="colors">
+                    <label>Рамка <input type="color" id="col-frame"></label>
+                    <label>Линии <input type="color" id="col-line"></label>
+                    <label>Таймер <input type="color" id="col-timer"></label>
+                    <label>Тревога <input type="color" id="col-alarm"></label>
+                </div>
+                <div class="checks">
+                    <label class="check"><input type="checkbox" id="showNames"> Показывать названия команд</label>
+                    <label class="check"><input type="checkbox" id="showLeader"> Счёт лидера на табло команды</label>
+                    <label class="check"><input type="checkbox" id="showFrame"> Рамка вокруг табло</label>
+                    <label class="check"><input type="checkbox" id="rounded"> Скруглённые цифры и рамка</label>
+                </div>
+                <div class="positions">
+                    <label class="select-field">Счёт участников эстафеты
+                        <select id="legsPos">
+                            <option value="top">сверху</option>
+                            <option value="bottom">снизу</option>
+                            <option value="left">слева</option>
+                            <option value="right">справа</option>
+                        </select>
+                    </label>
+                    <label class="select-field">Счёт лидера
+                        <select id="leaderPos">
+                            <option value="top">сверху</option>
+                            <option value="bottom">снизу</option>
+                            <option value="left">слева</option>
+                            <option value="right">справа</option>
+                        </select>
+                    </label>
+                </div>
+                <details class="hint-box">
+                    <summary>Как настраиваются цвета и подсказки</summary>
+                    <p class="hint">Цвета названия, счёта, огранки и всего табло отдельной команды настраиваются в её карточке. Тревога — цвет таймера в последние 10 секунд; по окончании времени рамка тоже становится этого цвета. Если обе подсказки выбраны с одной стороны, они ставятся рядом: ближе к краю — результаты участников, затем счёт лидера. На маленьких панелях скругление лучше отключить.</p>
+                </details>
             </section>
 
-            <section>
-                <h2>Доступ</h2>
-                <div class="block" style="margin-top:0">
-                    <p>Судьи команд и хронометрист входят на <b id="ctlUrl">главной странице сервера</b>: судья команды — по PIN из карточки своей команды, хронометрист — по PIN ниже.</p>
-                    <p>Пульт хронометриста: только таймер (старт, пауза, сброс, время и режим), счёт команд ему доступен для просмотра.</p>
-                    <div class="timerbox">PIN хронометриста: <span class="pinbox" id="timerPin"></span><button id="bTimerPin">Новый PIN</button></div>
-                    <p>PIN администратора</p>
-                    <div class="adminbox">
+            <section class="card">
+                <div class="card-head">
+                    <h2>Генератор ссылок</h2>
+                </div>
+                <p class="hint" style="margin-top:0">Настройки из ссылки действуют только на то табло, где она открыта, и перекрывают общие настройки.</p>
+                <div class="gen-grid" style="margin-top:12px">
+                    <label class="select-field">Табло
+                        <select id="gTeam"></select>
+                    </label>
+                    <label class="select-field">Адрес сервера (IP)
+                        <select id="gHost" title="С каким адресом собирать ссылки на табло"></select>
+                    </label>
+                </div>
+                <div class="colors" id="gColors"></div>
+                <div class="gen-options">
+                    <div class="gen-col">
+                        <span class="label">Параметр · видимость</span>
+                        <div id="gFlags"></div>
+                    </div>
+                    <div class="gen-col">
+                        <span class="label">Где видно</span>
+                        <div id="gPos"></div>
+                    </div>
+                </div>
+                <div class="size-row">
+                    <label>Размер панели <input type="number" id="gW" value="320" min="16" max="16384"> × <input type="number" id="gH" value="192" min="16" max="16384"> px</label>
+                </div>
+                <div class="url" style="margin-top:12px"><code id="gUrl"></code></div>
+                <div class="toolbar">
+                    <button type="button" id="gCopy" class="btn btn-sm">Копировать</button>
+                    <a id="gOpen" class="btn btn-sm btn-ghost" target="_blank" rel="noopener">Открыть ↗</a>
+                </div>
+                <iframe id="gPrev" title="Предпросмотр табло"></iframe>
+                <details class="hint-box">
+                    <summary>Параметры адреса</summary>
+                    <p class="hint">Параметры адреса: <code>team</code> (номер команды), цвета <code>timer frame line alarm nameColor countColor edge</code> (hex без #), переключатели <code>names leader frame round</code> (0 или 1), положение подсказок <code>legsPos leaderPos</code> (<code>top bottom left right</code>).</p>
+                </details>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <h2>Доступ</h2>
+                </div>
+                <p class="hint" style="margin-top:0">Судьи команд и хронометрист входят на <b id="ctlUrl">главной странице</b> по своему PIN. Хронометристу доступен только таймер.</p>
+                <div class="pin-row">
+                    <span class="label">PIN хронометриста</span>
+                    <span class="pinbox" id="timerPin"></span>
+                    <button type="button" id="bTimerPin" class="btn btn-sm">Новый PIN</button>
+                </div>
+                <div style="margin-top:12px">
+                    <label class="label" for="newPin">PIN администратора</label>
+                    <div class="inline-form">
                         <input id="newPin" type="text" maxlength="12" placeholder="Новый PIN (4–12 символов)" autocomplete="off">
-                        <button id="bSetPin">Сменить</button>
+                        <button type="button" id="bSetPin" class="btn btn-sm">Сменить</button>
                     </div>
-                    <p class="note" id="pinNote"></p>
-                    <div class="row" style="margin-top:8px"><button id="bExit">Выйти</button></div>
                 </div>
+                <p class="note" id="pinNote"></p>
+                <button type="button" id="bExit" class="btn btn-ghost">Выйти</button>
             </section>
 
-            <section class="noselect">
-                <h2>Клавиши админ-панели</h2>
+            <section class="card noselect">
+                <div class="card-head">
+                    <h2>Горячие клавиши</h2>
+                </div>
                 <dl class="keys-list">
                     <dt>Пробел / Enter</dt><dd>старт / пауза</dd>
-                    <dt>1 … 8</dt><dd>команда с этим номером: +1 (Shift: −1)</dd>
+                    <dt>1 … 8</dt><dd>команда: +1 (Shift: −1)</dd>
                     <dt>← →</dt><dd>время ±1 мин (Shift: ±10 с)</dd>
                     <dt>R · Delete</dt><dd>сброс таймера · обнулить счёт</dd>
                     <dt>T</dt><dd>режим: отсчёт → секундомер → эстафета</dd>
                 </dl>
             </section>
-        </div>
+        </aside>
     </main>
+
+    <div class="dialog-backdrop" id="dialog" hidden>
+        <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogText">
+            <h3 id="dialogTitle">Подтвердите действие</h3>
+            <p id="dialogText"></p>
+            <div class="dialog-actions">
+                <button type="button" class="btn" id="dialogCancel">Отмена</button>
+                <button type="button" class="btn btn-danger" id="dialogOk">Удалить</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="/render.js"></script>
     <script src="/net.js"></script>

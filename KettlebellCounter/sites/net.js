@@ -5,6 +5,13 @@
     let PIN = '';
     try { PIN = localStorage.getItem('kbPin') || ''; } catch { }
 
+    // Closing the page also closes its EventSource. That must not look like a rejected PIN,
+    // otherwise a reload would log the admin out and erase the remembered code.
+    let leaving = false;
+    addEventListener('pagehide', () => { leaving = true; });
+    addEventListener('beforeunload', () => { leaving = true; });
+    addEventListener('pageshow', () => { leaving = false; });
+
     function setPIN(p) {
         PIN = String(p || '');
         try { PIN ? localStorage.setItem('kbPin', PIN) : localStorage.removeItem('kbPin'); } catch { }
@@ -35,7 +42,7 @@
         es.onopen = () => { handlers.status(true); syncClock(); };
         es.onerror = () => {
             handlers.status(false);   // EventSource reconnects by itself
-            if (role === 'adminpanel' && es.readyState === EventSource.CLOSED) handlers.auth();   // the server refused: wrong PIN
+            if (!leaving && role === 'adminpanel' && es.readyState === EventSource.CLOSED) handlers.auth();   // the server refused: wrong PIN
         };
     }
 
@@ -62,7 +69,7 @@
                 headers: { 'Content-Type': 'application/json', 'x-pin': PIN },
                 body: JSON.stringify(a)
             });
-            if (r.status === 401) handlers.auth();
+            if (r.status === 401 && !leaving) handlers.auth();
             return r.ok;
         } catch { handlers.status(false); return false; }
     }

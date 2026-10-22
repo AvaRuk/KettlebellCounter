@@ -16,13 +16,70 @@ if (logo.complete && logo.naturalWidth === 0) hideLogo();
 
 function exit() { NET.setPIN(''); location.href = '/'; }
 
+// ---------- Toast ----------
+let toastTimer = null;
+function toast(message) {
+    const el = $('toast');
+    el.textContent = message;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 1900);
+}
+
+// ---------- In-page confirmation ----------
+// A plain Android WebView silently cancels native confirm(), so destructive actions use this
+// dialog. It also looks the same in every browser and follows the current site theme.
+const dlg = { root: $('dialog'), title: $('dialogTitle'), text: $('dialogText'), ok: $('dialogOk'), cancel: $('dialogCancel') };
+let dlgResolve = null;
+let dlgPreviousFocus = null;
+
+function uiConfirm(message, opts = {}) {
+    return new Promise((resolve) => {
+        if (dlgResolve) { dlgResolve(false); dlgResolve = null; }
+        dlgPreviousFocus = document.activeElement;
+        dlg.title.textContent = opts.title || 'Подтвердите действие';
+        dlg.text.textContent = message;
+        dlg.ok.textContent = opts.ok || 'Удалить';
+        dlg.ok.className = 'btn ' + (opts.danger === false ? 'btn-primary' : 'btn-danger');
+        dlg.cancel.textContent = opts.cancel || 'Отмена';
+        dlg.root.hidden = false;
+        document.body.classList.add('modal-open');
+        dlgResolve = resolve;
+        setTimeout(() => dlg.cancel.focus(), 0);   // the safe choice is focused first
+    });
+}
+
+function closeDialog(ok) {
+    if (!dlgResolve) return;
+    const resolve = dlgResolve;
+    dlgResolve = null;
+    dlg.root.hidden = true;
+    document.body.classList.remove('modal-open');
+    resolve(ok);
+    if (dlgPreviousFocus && typeof dlgPreviousFocus.focus === 'function') dlgPreviousFocus.focus();
+    dlgPreviousFocus = null;
+}
+
+dlg.ok.onclick = () => closeDialog(true);
+dlg.cancel.onclick = () => closeDialog(false);
+dlg.root.addEventListener('click', (e) => { if (e.target === dlg.root) closeDialog(false); });
+document.addEventListener('keydown', (e) => {
+    if (!dlg.root.hidden && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(false); }
+}, true);
+
 // ---------- Element bindings ----------
 $('bToggle').onclick = () => send({ type: 'globalToggleTime' });
 $('bReset').onclick = () => send({ type: 'globalResetTime' });
-$('bResetCounts').onclick = () => send({ type: 'globalResetCounts' });
+$('bResetCounts').onclick = async () => {
+    if (await uiConfirm('Обнулить счётчики всех команд? Это действие нельзя отменить.', { title: 'Обнулить все счётчики?', ok: 'Обнулить' }))
+        send({ type: 'globalResetCounts' });
+};
 $('bAddTeam').onclick = () => send({ type: 'teamAdd' });
 $('bExit').onclick = exit;
-$('bTimerPin').onclick = () => { if (confirm('Выдать хронометристу новый PIN? Старый перестанет работать.')) send({ type: 'timerNewPIN' }); };
+$('bTimerPin').onclick = async () => {
+    if (await uiConfirm('Выдать хронометристу новый PIN? Старый перестанет работать.', { title: 'Новый PIN хронометриста', ok: 'Выдать' }))
+        send({ type: 'timerNewPIN' });
+};
 document.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => send({ type: 'globalSetMode', mode: b.dataset.mode })));
 document.querySelectorAll('[data-sec]').forEach((b) => (b.onclick = () => send({ type: 'globalSetDuration', sec: +b.dataset.sec })));
 
@@ -52,7 +109,8 @@ $('bSetPin').onclick = async () => {
     if (await send({ type: 'globalSetPIN', newPIN: p })) {
         NET.setPIN(p);
         note.textContent = 'PIN изменён';
-        setTimeout(() => location.reload(), 600);   // reconnect with the new PIN
+        toast('PIN администратора изменён');
+        setTimeout(() => location.reload(), 700);   // reconnect with the new PIN
     } else {
         note.classList.add('bad');
         note.textContent = 'Не удалось: такой PIN уже занят командой';
@@ -84,6 +142,7 @@ function keyToAction(e) {
     return null;
 }
 document.addEventListener('keydown', (e) => {
+    if (!dlg.root.hidden) return;   // the confirmation dialog owns the keyboard
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT') {
         if (e.key === 'Enter' || e.key === 'Escape') e.target.blur();
@@ -100,21 +159,41 @@ function makeCard(t) {
     const el = document.createElement('article');
     el.className = 'team';
     el.innerHTML = `
-        <div class="team-head"><h2></h2><button class="rm" title="Удалить команду">✕</button></div>
-        <p class="where"></p>
-        <input class="name" type="text" maxlength="14" spellcheck="false" placeholder="Название" autocomplete="off">
-        <p class="cut hidden">На панели не помещается целиком</p>
-        <input class="count" type="number" min="0" max="999" value="0">
-        <div class="row"><button class="dn">−1</button><button class="go up">+1</button></div>
-        <p class="keys"></p>
-        <p class="tcolors"><label>Цвет названия <input type="color" class="cn"></label><label>Цвет счёта <input type="color" class="cc"></label><button class="cr" title="Вернуть цвета команды по умолчанию">Сбросить</button></p>
-        <p class="tcolors"><label>Огранка на общем табло <input type="color" class="ce"></label><button class="cer" title="Убрать огранку">Убрать</button></p>
-        <p class="tcolors"><span>Табло команды:</span><label>Таймер <input type="color" class="dc" data-k="timer"></label><label>Рамка <input type="color" class="dc" data-k="frame"></label><label>Тревога <input type="color" class="dc" data-k="alarm"></label></p>
-        <p class="pins tbl"><span>Табло команды:</span><a class="tlink" target="_blank">Открыть</a><button class="tcopy">Копировать адрес</button></p>
-        <p class="pins">PIN команды: <span class="pinbox"></span><button class="newpin">Новый PIN</button></p>`;
+        <div class="team-head">
+            <div class="team-title"><h3></h3><p class="where"></p></div>
+            <button type="button" class="icon-btn rm" title="Удалить команду" aria-label="Удалить команду">✕</button>
+        </div>
+        <label class="field"><span class="label">Название</span><input class="name" type="text" maxlength="14" spellcheck="false" placeholder="Название команды" autocomplete="off"></label>
+        <p class="cut hidden">На табло не помещается целиком</p>
+        <input class="count" type="number" min="0" max="999" value="0" aria-label="Счёт команды">
+        <div class="score-buttons"><button type="button" class="dn" aria-label="Минус один">−1</button><button type="button" class="up" aria-label="Плюс один">+1</button></div>
+        <div class="team-meta">
+            <p class="keys"></p>
+            <span class="team-pin">PIN <span class="pinbox"></span></span>
+        </div>
+        <div class="team-actions">
+            <button type="button" class="newpin btn btn-sm">Новый PIN</button>
+            <a class="tlink btn btn-sm" target="_blank" rel="noopener">Табло команды ↗</a>
+            <button type="button" class="tcopy btn btn-sm">Копировать адрес</button>
+        </div>
+        <details class="team-style">
+            <summary>Оформление команды</summary>
+            <div class="style-grid">
+                <label>Цвет названия <input type="color" class="cn"></label>
+                <label>Цвет счёта <input type="color" class="cc"></label>
+                <label>Огранка на общем табло <input type="color" class="ce"></label>
+                <label>Таймер табло <input type="color" class="dc" data-k="timer"></label>
+                <label>Рамка табло <input type="color" class="dc" data-k="frame"></label>
+                <label>Тревога <input type="color" class="dc" data-k="alarm"></label>
+            </div>
+            <div class="style-actions">
+                <button type="button" class="cr btn btn-sm">Вернуть цвета по схеме</button>
+                <button type="button" class="cer btn btn-sm">Убрать огранку</button>
+            </div>
+        </details>`;
     const q = (s) => el.querySelector(s);
     const c = {
-        el, title: q('h2'), where: q('.where'), name: q('.name'), cut: q('.cut'), count: q('.count'),
+        el, title: q('h3'), where: q('.where'), name: q('.name'), cut: q('.cut'), count: q('.count'),
         keys: q('.keys'), pin: q('.pinbox'), link: q('.tlink'), cn: q('.cn'), cc: q('.cc'), cr: q('.cr'), ce: q('.ce'), cer: q('.cer')
     };
     c.cn.oninput = () => send({ type: 'teamSetColor', teamid: t.id, part: 'name', value: c.cn.value });
@@ -124,17 +203,26 @@ function makeCard(t) {
     c.dcs = [...el.querySelectorAll('.dc')];
     c.dcs.forEach((i) => (i.oninput = () => send({ type: 'teamSetDisplayColor', teamid: t.id, key: i.dataset.k, value: i.value })));
     c.cr.onclick = () => {
-        ['timer', 'frame', 'alarm'].forEach((k) => send({ type: 'teamSetDisplayColor', teamid: t.id, key: k, value: null })); send({ type: 'teamSetColor', teamid: t.id, part: 'name', value: null }); send({ type: 'teamSetColor', teamid: t.id, part: 'count', value: null }); send({ type: 'teamSetEdge', teamid: t.id, value: null }); };
-    q('.tcopy').onclick = (ev) => {
-        copyText(c.link.href); ev.target.textContent = 'Скопировано'; setTimeout(() => (ev.target.textContent = 'Копировать адрес'), 1500);
+        ['timer', 'frame', 'alarm'].forEach((k) => send({ type: 'teamSetDisplayColor', teamid: t.id, key: k, value: null }));
+        send({ type: 'teamSetColor', teamid: t.id, part: 'name', value: null });
+        send({ type: 'teamSetColor', teamid: t.id, part: 'count', value: null });
+        send({ type: 'teamSetEdge', teamid: t.id, value: null });
     };
-    q('.rm').onclick = () => {
-        const nm = c.name.value || c.title.textContent;
-        if (confirm(`Удалить команду «${nm}»?`)) send({ type: 'teamRemove', teamid: t.id });
+    q('.tcopy').onclick = async () => {
+        await copyText(c.link.href);
+        toast('Адрес табло скопирован');
+    };
+    q('.rm').onclick = async () => {
+        const nm = c.name.value.trim() || c.title.textContent;
+        if (await uiConfirm(`Команда «${nm}» будет удалена вместе со своим счётом и PIN-кодом.`, { title: 'Удалить команду?', ok: 'Удалить' }))
+            send({ type: 'teamRemove', teamid: t.id });
     };
     q('.dn').onclick = () => send({ type: 'localCountDown', teamid: t.id });
     q('.up').onclick = () => send({ type: 'localCountUp', teamid: t.id });
-    q('.newpin').onclick = () => { if (confirm('Выдать команде новый PIN? Старый перестанет работать.')) send({ type: 'teamNewPIN', teamid: t.id }); };
+    q('.newpin').onclick = async () => {
+        if (await uiConfirm('Выдать команде новый PIN? Старый перестанет работать.', { title: 'Новый PIN команды', ok: 'Выдать' }))
+            send({ type: 'teamNewPIN', teamid: t.id });
+    };
     c.count.onchange = () => send({ type: 'localSetCount', teamid: t.id, value: +c.count.value || 0 });
     // The name goes to the display immediately as you type; when done, the field shows the cleaned-up version
     c.name.oninput = () => send({ type: 'teamSetName', teamid: t.id, name: c.name.value });
@@ -197,6 +285,7 @@ function applyTeams() {
         if (document.activeElement !== c.name) c.name.value = t.name;
     });
     $('bAddTeam').disabled = st.teams.length >= MAX_TEAMS;
+    $('teamCount').textContent = `${st.teams.length} из ${MAX_TEAMS}`;
 }
 
 // ---------- State display ----------
@@ -207,10 +296,12 @@ function applyState() {
 
     const bt = $('bToggle');
     bt.textContent = st.running ? 'Пауза' : paused ? 'Продолжить' : 'Старт';
-    bt.className = st.running ? 'warn' : 'go';
+    bt.className = 'btn btn-xl ' + (st.running ? 'btn-warn' : 'btn-primary');
     bt.disabled = st.finished;
     $('bReset').disabled = st.running || idle;
     $('bResetCounts').disabled = st.running;
+    const state = st.finished ? 'finished' : st.running ? 'running' : paused ? 'paused' : 'idle';
+    $('status').dataset.state = state;
     $('status').textContent = st.finished ? 'Время вышло' : st.running ? 'Идёт' : paused ? 'Пауза' : 'Готов';
 
     const rl = st.relay || { on: false, legs: 3, carry: false };
@@ -232,8 +323,8 @@ function applyState() {
     $('timerPin').textContent = st.timerPIN ?? '';
     $('showNames').checked = st.showNames;
     $('showLeader').checked = st.showLeader !== false;
-    $('legsPos').value = st.legsPos || 'top';
-    $('leaderPos').value = st.leaderPos || 'bottom';
+    $('legsPos').value = st.legsPos || KB.DEFAULT_LEGS_POS;
+    $('leaderPos').value = st.leaderPos || KB.DEFAULT_LEADER_POS;
     $('showFrame').checked = st.frame !== false;
     $('rounded').checked = st.rounded !== false;
 
@@ -245,16 +336,25 @@ function applyState() {
     tick();
 }
 
-function copyText(text) {
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+async function copyText(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return; }
+    } catch { }
     const ta = document.createElement('textarea');   // fallback: the page is opened by IP without https
-    ta.value = text; document.body.appendChild(ta); ta.select();
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
     try { document.execCommand('copy'); } catch { }
     ta.remove();
 }
 
 function applyInfo() {
     const ds = info.displays;
+    $('displayCount').textContent = ds.length ? `${ds.length} в сети` : 'нет';
     const list = $('displays');
     list.innerHTML = '';
     if (!ds.length) {
@@ -274,9 +374,9 @@ function applyInfo() {
     addrs.forEach((u) => {
         const row = document.createElement('div'); row.className = 'url';
         const code = document.createElement('code'); code.textContent = u;
-        const copy = document.createElement('button'); copy.textContent = 'Копировать';
-        copy.onclick = () => { copyText(u); copy.textContent = 'Скопировано'; setTimeout(() => (copy.textContent = 'Копировать'), 1500); };
-        const open = document.createElement('a'); open.href = u; open.target = '_blank'; open.textContent = 'Открыть';
+        const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn btn-sm'; copy.textContent = 'Копировать';
+        copy.onclick = async () => { await copyText(u); toast('Адрес табло скопирован'); };
+        const open = document.createElement('a'); open.className = 'btn btn-sm btn-ghost'; open.href = u; open.target = '_blank'; open.rel = 'noopener'; open.textContent = 'Открыть ↗';
         row.append(code, copy, open);
         urls.appendChild(row);
     });
@@ -308,7 +408,7 @@ function buildGenerator() {
         l.append(sp, inp);
         box.appendChild(l);
     });
-    const fl = $('gFlags');
+    const fl = $('gFlags'), gp = $('gPos');
     G_FLAGS.forEach(([k, label]) => {
         const l = document.createElement('label'); l.append(label + ' ');
         const sel = document.createElement('select'); sel.dataset.flag = k;
@@ -321,22 +421,32 @@ function buildGenerator() {
         const sel = document.createElement('select'); sel.dataset.pos = k;
         sel.innerHTML = '<option value="">как в настройках</option><option value="top">сверху</option><option value="bottom">снизу</option><option value="left">слева</option><option value="right">справа</option>';
         sel.onchange = genUpdate;
-        l.appendChild(sel); fl.appendChild(l);
+        l.appendChild(sel); gp.appendChild(l);
     });
+    // The leader's position only makes sense while the leader's score is visible
+    const leaderVis = fl.querySelector('select[data-flag="leader"]');
+    const leaderPos = gp.querySelector('select[data-pos="leaderPos"]');
+    const syncLeaderPos = () => { if (leaderPos) leaderPos.disabled = leaderVis.value === '0'; };
+    leaderVis.addEventListener('change', syncLeaderPos);
+    syncLeaderPos();
     for (const id of ['gTeam', 'gW', 'gH']) $(id).onchange = $(id).oninput = genUpdate;
     $('gHost').onchange = () => {
         chosenBase = $('gHost').value;
         try { localStorage.setItem(HOST_KEY, chosenBase); } catch { }
         refreshLinks();
     };
-    $('gCopy').onclick = () => { copyText($('gUrl').textContent); $('gCopy').textContent = 'Скопировано'; setTimeout(() => ($('gCopy').textContent = 'Копировать'), 1500); };
+    $('gCopy').onclick = async () => { await copyText($('gUrl').textContent); toast('Ссылка на табло скопирована'); };
 }
 
 function genQuery(extra) {
     const q = [];
     if ($('gTeam').value) q.push('team=' + $('gTeam').value);
     for (const [k] of G_COLORS) if (gColor[k].cb.checked) q.push(k + '=' + gColor[k].inp.value.slice(1));
-    document.querySelectorAll('#gFlags select').forEach((s) => { if (s.value) q.push((s.dataset.flag || s.dataset.pos) + '=' + s.value); });
+    const leaderOff = document.querySelector('#gFlags select[data-flag="leader"]').value === '0';
+    document.querySelectorAll('#gFlags select, #gPos select').forEach((s) => {
+        if (!s.value || (leaderOff && s.dataset.pos === 'leaderPos')) return;
+        q.push((s.dataset.flag || s.dataset.pos) + '=' + s.value);
+    });
     return q.concat(extra || []);
 }
 
@@ -368,6 +478,16 @@ function tick() {
     const r = $('read');
     r.textContent = KB.fmt(KB.secondsOf(st));
     r.classList.toggle('alarm', KB.isAlarm(st));
+
+    const total = Math.max(1, st.duration);
+    const done = st.mode === 'down'
+        ? 1 - Math.min(1, KB.secondsOf(st) / total)
+        : Math.min(1, KB.secondsOf(st) / total);
+    const bar = $('progress');
+    if (bar) {
+        bar.style.width = (done * 100).toFixed(1) + '%';
+        $('progressBar').classList.toggle('alarm', KB.isAlarm(st));
+    }
 }
 
 // There is no preview on the panel; the "doesn't fit" warning remains: the layout is computed on an invisible canvas the size of the real main display
@@ -392,7 +512,7 @@ NET.on('auth', exit);   // the PIN doesn't fit — go back to the login page
 NET.on('status', (ok) => {
     const el = $('conn');
     el.classList.toggle('off', !ok);
-    el.textContent = ok ? 'пульт управления табло' : 'нет связи с сервером…';
+    el.textContent = ok ? 'на связи' : 'нет связи…';
 });
 
 (async () => {

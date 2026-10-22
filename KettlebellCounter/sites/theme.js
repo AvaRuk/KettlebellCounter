@@ -1,7 +1,7 @@
 // Site theme: picked per device and remembered in localStorage. Loaded in <head> so the theme is applied before the page is drawn.
 // Every page has <select class="themepick" id="themeSel"> in its header; this script fills it.
 (function () {
-    const THEMES = [['tgasu', 'ТГАСУ'], ['graphite', 'Графит'], ['light', 'Светлая'], ['contrast', 'Контрастная']];
+    const THEMES = [['tgasu', 'ТГАСУ'], ['amoled', 'Amoled'], ['graphite', 'Графит'], ['light', 'Светлая'], ['contrast', 'Контрастная']];
     const KEY = 'kbTheme';
     const valid = (v) => THEMES.some((t) => t[0] === v);
     const apply = (v) => { document.documentElement.dataset.theme = v; };
