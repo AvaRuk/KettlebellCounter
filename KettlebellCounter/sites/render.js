@@ -154,7 +154,7 @@
     }
     const chars = 4 * N - 1;
     const s = Math.min(Math.floor(cw / (6 * chars - 1)), Math.floor((ch * 0.22) / 9));
-    return s < 1 ? none : { s, size: 8 * s + Math.max(1, Math.floor(s / 2)) };
+    return s < 1 ? none : { s, size: 9 * s };   // 7·s text + 2·s gap facing the score
   }
 
   // Cuts a band of the given size from the rectangle on the given side; returns { band, rest }
@@ -535,7 +535,7 @@
           } else {
             const txt = Array.from({ length: legsN }, (_, k) => val(k)).join(' ');
             const tw = txt.length * 6 * ls - ls;
-            drawText(ctx, txt, c.x + r.x + Math.max(0, Math.floor((r.w - tw) / 2)), c.y + r.y, ls, countCol);
+            drawText(ctx, txt, c.x + r.x + Math.max(0, Math.floor((r.w - tw) / 2)), c.y + r.y + (legs.pos === 'bottom' ? 2 * ls : 0), ls, countCol);
           }
         }
         if (st.finished) big = teamTotal(st, teams[i]);   // during a leg — the participant's counter (from zero or from the current value), at the end — the overall total
